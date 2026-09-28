@@ -1,0 +1,3139 @@
+<!DOCTYPE html>
+<html lang="es" class="overflow-x-hidden">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Control Lotería de Navidad</title>
+  
+  <!-- PWA Meta Tags -->
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Lotería Navidad">
+  <meta name="description" content="Gestión profesional de reparto, series, cobro y beneficios de Lotería de Navidad">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎟️</text></svg>">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              900: '#14532d',
+            },
+            gold: {
+              400: '#facc15',
+              500: '#eab308',
+              600: '#ca8a04',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- React & Dependencies CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <style>
+    html, body {
+      max-width: 100vw;
+      overflow-x: hidden;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      font-size: 15px;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.05);
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans antialiased min-h-screen overflow-x-hidden">
+  <div id="root"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./config.js"></script>
+  <script type="text/babel">
+    const { useState, useEffect, useMemo, useRef } = React;
+
+    const supabaseClient = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+
+    const INITIAL_DEMO_DATA = {
+      campaigns: [
+        { id: 'camp_2026', name: 'Lotería de Navidad 2026', defaultCostPrice: 20, defaultSurcharge: 3, status: 'active', year: '2026', createdAt: '2026-08-01' }
+      ],
+      activeCampaignId: 'camp_2026',
+      settings: {
+        appName: 'Control Lotería de Navidad',
+        userName: 'Administrador Lotería',
+        defaultCostPrice: 20,
+        defaultSurcharge: 3,
+        lowStockThreshold: 10,
+        currencySymbol: '€',
+        clubEntityName: '⭐ Lotería de la Peña / Asociación',
+        priceProfiles: [
+          { id: 'prof_1', name: 'Estándar (+3€ beneficio)', costPrice: 20, surcharge: 3 },
+          { id: 'prof_2', name: 'Reducido (+2€ beneficio)', costPrice: 20, surcharge: 2 }
+        ]
+      },
+      people: [
+        { id: 'p_club', name: '⭐ Lotería de la Peña / Asociación', phone: '-', email: '-', notes: 'Lotería propia jugada por el club/peña', isClub: true },
+        { id: 'p1', name: 'Juan Pérez', phone: '611223344', email: 'juan@ejemplo.com', notes: 'Amigo del club' },
+        { id: 'p2', name: 'María López', phone: '622334455', email: 'maria@ejemplo.com', notes: 'Compañera de trabajo' }
+      ],
+      lotteryEntries: [
+        {
+          id: 'ent_1',
+          campaignId: 'camp_2026',
+          number: '12345',
+          series: 3,
+          decimos: 30,
+          returnedDecimos: 0,
+          seriesRange: 'Series 001 a 003',
+          date: '2026-11-01',
+          supplier: 'Administración Lotería Nº 1',
+          costPricePerDecimo: 20,
+          notes: 'Recogida inicial completa'
+        }
+      ],
+      distributions: [
+        {
+          id: 'dist_club',
+          campaignId: 'camp_2026',
+          personId: 'p_club',
+          number: '12345',
+          decimos: 5,
+          returnedDecimos: 0,
+          seriesIdent: 'Serie 001 (Fracc. 1 a 5)',
+          costPricePerDecimo: 20,
+          surchargePerDecimo: 0,
+          sellingPricePerDecimo: 20,
+          totalAmount: 100,
+          totalCostAmount: 100,
+          totalProfitAmount: 0,
+          paidAmount: 100,
+          status: 'paid',
+          date: '2026-11-02T10:00:00',
+          notes: 'Reserva para la Peña'
+        },
+        {
+          id: 'dist_1',
+          campaignId: 'camp_2026',
+          personId: 'p1',
+          number: '12345',
+          decimos: 2,
+          returnedDecimos: 0,
+          seriesIdent: 'Serie 001 (Fracc. 6 y 7)',
+          costPricePerDecimo: 20,
+          surchargePerDecimo: 3,
+          sellingPricePerDecimo: 23,
+          totalAmount: 46,
+          totalCostAmount: 40,
+          totalProfitAmount: 6,
+          paidAmount: 46,
+          status: 'paid',
+          date: '2026-11-10T10:30:00',
+          notes: 'Entrega en mano'
+        }
+      ],
+      payments: [
+        {
+          id: 'pay_1',
+          campaignId: 'camp_2026',
+          personId: 'p1',
+          amount: 46,
+          method: 'Efectivo',
+          date: '2026-11-10T10:30:00',
+          notes: 'Cobro completo de Juan Pérez'
+        }
+      ],
+      loteroPayments: [
+        {
+          id: 'lot_pay_1',
+          campaignId: 'camp_2026',
+          amount: 200,
+          method: 'Transferencia',
+          date: '2026-11-15T11:00:00',
+          notes: 'Entrega a cuenta administración'
+        }
+      ],
+      loteroReturns: [],
+      movements: [
+        {
+          id: 'mov_1',
+          campaignId: 'camp_2026',
+          type: 'ENTRADA',
+          category: 'loteria',
+          number: '12345',
+          decimos: 30,
+          personName: 'Administración Lotería Nº 1',
+          amount: 600,
+          date: '2026-11-01T09:00:00',
+          notes: 'Recogida: 3 series (Series 001 a 003)'
+        },
+        {
+          id: 'mov_2',
+          campaignId: 'camp_2026',
+          type: 'PEÑA',
+          category: 'entrega',
+          number: '12345',
+          decimos: 5,
+          personName: '⭐ Lotería de la Peña / Asociación',
+          amount: 100,
+          date: '2026-11-02T10:00:00',
+          notes: 'Lotería propia que juega la peña (5 décimos a 20€)'
+        },
+        {
+          id: 'mov_3',
+          campaignId: 'camp_2026',
+          type: 'REPARTO',
+          category: 'entrega',
+          number: '12345',
+          decimos: 2,
+          personName: 'Juan Pérez',
+          amount: 46,
+          date: '2026-11-10T10:30:00',
+          notes: 'Reparto a Juan Pérez (2 décimos a 23€)'
+        },
+        {
+          id: 'mov_4',
+          campaignId: 'camp_2026',
+          type: 'COBRO',
+          category: 'cobro',
+          number: '12345',
+          decimos: 0,
+          personName: 'Juan Pérez',
+          amount: 46,
+          date: '2026-11-10T10:30:00',
+          notes: 'Cobro de 46€'
+        },
+        {
+          id: 'mov_5',
+          campaignId: 'camp_2026',
+          type: 'PAGO LOTERO',
+          category: 'lotero',
+          number: '-',
+          decimos: 0,
+          personName: 'Administración Lotería',
+          amount: 200,
+          date: '2026-11-15T11:00:00',
+          notes: 'Entrega a cuenta de 200€ al lotero'
+        }
+      ]
+    };
+
+    const formatCurrency = (val) => `${Number(val || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+    const formatDateTime = (dateStr) => {
+      if (!dateStr) return '';
+      const d = new Date(dateStr);
+      return isNaN(d.getTime()) ? dateStr : d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    };
+    const formatDate = (dateStr) => {
+      if (!dateStr) return '';
+      const d = new Date(dateStr);
+      return isNaN(d.getTime()) ? dateStr : d.toLocaleDateString('es-ES');
+    };
+
+    function LoginScreen() {
+      const [email, setEmail] = useState('');
+      const [password, setPassword] = useState('');
+      const [mode, setMode] = useState('login');
+      const [busy, setBusy] = useState(false);
+      const [message, setMessage] = useState('');
+
+      const submit = async (e) => {
+        e.preventDefault();
+        setBusy(true); setMessage('');
+        try {
+          const result = mode === 'login'
+            ? await supabaseClient.auth.signInWithPassword({ email, password })
+            : await supabaseClient.auth.signUp({ email, password });
+          if (result.error) throw result.error;
+          if (mode === 'signup' && !result.data.session) {
+            setMessage('Cuenta creada. Revisa tu correo para confirmar la cuenta y después inicia sesión.');
+            setMode('login');
+          }
+        } catch (err) {
+          setMessage(err.message || 'No se pudo completar la operación.');
+        } finally { setBusy(false); }
+      };
+
+      return (
+        <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl">
+            <div className="text-center mb-6">
+              <div className="text-4xl mb-2">🎟️</div>
+              <h1 className="text-2xl font-black">Control Lotería de Navidad</h1>
+              <p className="text-slate-400 text-sm mt-2">Datos sincronizados entre ordenador y móvil</p>
+            </div>
+            <form onSubmit={submit} className="space-y-4">
+              <input type="email" required value={email} onChange={e=>setEmail(e.target.value)}
+                placeholder="Correo electrónico" className="w-full rounded-xl bg-slate-800 border border-slate-700 p-3 text-white outline-none" />
+              <input type="password" required minLength="6" value={password} onChange={e=>setPassword(e.target.value)}
+                placeholder="Contraseña" className="w-full rounded-xl bg-slate-800 border border-slate-700 p-3 text-white outline-none" />
+              <button disabled={busy} className="w-full rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black p-3 disabled:opacity-50">
+                {busy ? 'Procesando…' : mode === 'login' ? 'Entrar' : 'Crear cuenta'}
+              </button>
+            </form>
+            {message && <div className="mt-4 rounded-xl bg-slate-800 p-3 text-sm text-amber-300">{message}</div>}
+            <button onClick={()=>{setMode(mode==='login'?'signup':'login');setMessage('');}}
+              className="w-full mt-4 text-sm text-slate-400 hover:text-white">
+              {mode === 'login' ? 'Crear una cuenta nueva' : 'Ya tengo una cuenta'}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [data, setData] = useState(null);
+      const [session, setSession] = useState(null);
+      const [cloudReady, setCloudReady] = useState(false);
+      const [syncing, setSyncing] = useState(false);
+      const cloudLoadedRef = useRef(false);
+      const saveTimerRef = useRef(null);
+
+      useEffect(() => {
+        let mounted = true;
+        const loadForSession = async (currentSession) => {
+          if (!currentSession) {
+            if (mounted) { setSession(null); setData(null); setCloudReady(false); }
+            return;
+          }
+          setSession(currentSession);
+          setCloudReady(false);
+          try {
+            const { data: row, error } = await supabaseClient
+              .from('app_state').select('data').eq('user_id', currentSession.user.id).maybeSingle();
+            if (error) throw error;
+
+            let initialData = row?.data;
+            if (!initialData) {
+              const local = localStorage.getItem('control_loteria_db_v15');
+              try { initialData = local ? JSON.parse(local) : INITIAL_DEMO_DATA; } catch (_) { initialData = INITIAL_DEMO_DATA; }
+              const { error: upsertError } = await supabaseClient.from('app_state').upsert({
+                user_id: currentSession.user.id,
+                data: initialData,
+                updated_at: new Date().toISOString()
+              }, { onConflict: 'user_id' });
+              if (upsertError) throw upsertError;
+            }
+            if (mounted) {
+              cloudLoadedRef.current = true;
+              setData(initialData);
+              setCloudReady(true);
+            }
+          } catch (err) {
+            console.error('Error cargando datos de la nube:', err);
+            if (mounted) {
+              setData(null);
+              setCloudReady(false);
+              alert('No se pudieron cargar los datos de la nube. Comprueba la configuración de Supabase.');
+            }
+          }
+        };
+
+        supabaseClient.auth.getSession().then(({ data }) => loadForSession(data.session));
+        const { data: listener } = supabaseClient.auth.onAuthStateChange((_event, currentSession) => loadForSession(currentSession));
+        return () => { mounted = false; listener.subscription.unsubscribe(); };
+      }, []);
+
+      useEffect(() => {
+        if (!cloudReady || !session || !data || !cloudLoadedRef.current) return;
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = setTimeout(async () => {
+          setSyncing(true);
+          localStorage.setItem('control_loteria_db_v15', JSON.stringify(data));
+          const { error } = await supabaseClient.from('app_state').upsert({
+            user_id: session.user.id,
+            data,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'user_id' });
+          if (error) console.error('Error sincronizando con la nube:', error);
+          setSyncing(false);
+        }, 600);
+        return () => clearTimeout(saveTimerRef.current);
+      }, [data, session, cloudReady]);
+
+      if (!session) return <LoginScreen />;
+      if (!cloudReady || !data) {
+        return <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
+          <div className="text-center"><div className="text-4xl mb-3">☁️</div><p className="font-bold">Cargando datos…</p><p className="text-slate-500 text-sm mt-1">Conectando con la base de datos</p></div>
+        </div>;
+      }
+      const [movTabFilter, setMovTabFilter] = useState('todos');
+      const [isQuickRepartoOpen, setIsQuickRepartoOpen] = useState(false);
+      const [preselectedPersonId, setPreselectedPersonId] = useState('');
+      const [isAddLotteryOpen, setIsAddLotteryOpen] = useState(false);
+      const [isAddClubLotteryOpen, setIsAddClubLotteryOpen] = useState(false);
+      const [isPayLoteroOpen, setIsPayLoteroOpen] = useState(false);
+      const [isReturnLoteroOpen, setIsReturnLoteroOpen] = useState(false);
+      const [isAddPersonOpen, setIsAddPersonOpen] = useState(false);
+      const [isImportPeopleOpen, setIsImportPeopleOpen] = useState(false);
+      const [isAddPaymentOpen, setIsAddPaymentOpen] = useState(false);
+      const [selectedPersonForPayment, setSelectedPersonForPayment] = useState(null);
+      const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+      const [selectedReturnDist, setSelectedReturnDist] = useState(null);
+      const [isCampaignsModalOpen, setIsCampaignsModalOpen] = useState(false);
+      const [selectedPersonDetail, setSelectedPersonDetail] = useState(null);
+      const [expandedPersonIds, setExpandedPersonIds] = useState({});
+      const [toastMessage, setToastMessage] = useState(null);
+
+      const showToast = (msg, type = 'success') => {
+        setToastMessage({ text: msg, type });
+        setTimeout(() => setToastMessage(null), 3500);
+      };
+
+      const toggleExpandPerson = (personId) => {
+        setExpandedPersonIds(prev => ({ ...prev, [personId]: !prev[personId] }));
+      };
+
+      const activeCampaign = useMemo(() => {
+        return data.campaigns.find(c => c.id === data.activeCampaignId) || data.campaigns[0] || { id: 'camp_default', name: 'Campaña General', defaultCostPrice: 20, defaultSurcharge: 3, status: 'active' };
+      }, [data.campaigns, data.activeCampaignId]);
+
+      const isCampaignClosed = activeCampaign.status === 'closed';
+      const clubEntityName = data.settings.clubEntityName || '⭐ Lotería de la Peña / Asociación';
+      const priceProfiles = data.settings.priceProfiles || [
+        { id: 'prof_1', name: 'Estándar (+3€ beneficio)', costPrice: 20, surcharge: 3 },
+        { id: 'prof_2', name: 'Reducido (+2€ beneficio)', costPrice: 20, surcharge: 2 }
+      ];
+
+      // --- FILTROS ESTRICTOS POR CAMPAÑA ACTIVA ---
+      const currentLotteryEntries = useMemo(() => {
+        return data.lotteryEntries.filter(e => e.campaignId === activeCampaign.id);
+      }, [data.lotteryEntries, activeCampaign.id]);
+
+      const currentDistributions = useMemo(() => {
+        return data.distributions.filter(d => d.campaignId === activeCampaign.id && d.status !== 'cancelled' && d.decimos > 0);
+      }, [data.distributions, activeCampaign.id]);
+
+      const currentPayments = useMemo(() => {
+        return (data.payments || []).filter(p => p.campaignId === activeCampaign.id);
+      }, [data.payments, activeCampaign.id]);
+
+      const currentLoteroPayments = useMemo(() => {
+        return (data.loteroPayments || []).filter(p => p.campaignId === activeCampaign.id);
+      }, [data.loteroPayments, activeCampaign.id]);
+
+      const currentLoteroReturns = useMemo(() => {
+        return (data.loteroReturns || []).filter(p => p.campaignId === activeCampaign.id);
+      }, [data.loteroReturns, activeCampaign.id]);
+
+      const currentMovements = useMemo(() => {
+        return data.movements.filter(m => m.campaignId === activeCampaign.id);
+      }, [data.movements, activeCampaign.id]);
+
+      // Repartos agrupados por persona
+      const groupedDistributionsByPerson = useMemo(() => {
+        const personMap = {};
+
+        data.people.forEach(p => {
+          const dists = currentDistributions.filter(d => d.personId === p.id);
+          if (dists.length === 0) return;
+
+          const totalDecimos = dists.reduce((sum, d) => sum + d.decimos, 0);
+          const totalReturned = dists.reduce((sum, d) => sum + (d.returnedDecimos || 0), 0);
+          const totalAmount = dists.reduce((sum, d) => sum + d.totalAmount, 0);
+          const totalCostAmount = dists.reduce((sum, d) => sum + (d.totalCostAmount || (d.decimos * (d.costPricePerDecimo || 20))), 0);
+          const totalProfitAmount = dists.reduce((sum, d) => sum + (d.totalProfitAmount || (d.decimos * (d.surchargePerDecimo || 0))), 0);
+          const totalPaid = dists.reduce((sum, d) => sum + d.paidAmount, 0);
+          const totalPending = Math.max(0, totalAmount - totalPaid);
+
+          const sortedDists = [...dists].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+          personMap[p.id] = {
+            person: p,
+            deliveriesCount: dists.length,
+            totalDecimos,
+            totalReturned,
+            totalAmount,
+            totalCostAmount,
+            totalProfitAmount,
+            totalPaid,
+            totalPending,
+            isFullyPaid: totalPending === 0,
+            distributions: sortedDists
+          };
+        });
+
+        return Object.values(personMap);
+      }, [data.people, currentDistributions]);
+
+      const inventoryByNumber = useMemo(() => {
+        const map = {};
+
+        currentLotteryEntries.forEach(entry => {
+          const num = entry.number;
+          if (!map[num]) {
+            map[num] = {
+              number: num,
+              seriesReceived: 0,
+              decimosReceived: 0,
+              decimosDistributed: 0,
+              costPricePerDecimo: entry.costPricePerDecimo || data.settings.defaultCostPrice || 20
+            };
+          }
+          map[num].seriesReceived += Number(entry.series || 0);
+          map[num].decimosReceived += Number(entry.decimos || 0);
+        });
+
+        currentDistributions.forEach(dist => {
+          const num = dist.number;
+          if (!map[num]) {
+            map[num] = {
+              number: num,
+              seriesReceived: 0,
+              decimosReceived: 0,
+              decimosDistributed: 0,
+              costPricePerDecimo: dist.costPricePerDecimo || data.settings.defaultCostPrice || 20
+            };
+          }
+          map[num].decimosDistributed += Number(dist.decimos || 0);
+        });
+
+        currentLoteroReturns.forEach(ret => {
+          const num = ret.number;
+          if (map[num]) {
+            map[num].decimosReceived -= Number(ret.decimos || 0);
+          }
+        });
+
+        return Object.values(map).map(item => {
+          const availableDecimos = Math.max(0, item.decimosReceived - item.decimosDistributed);
+          const availableSeries = Math.floor(availableDecimos / 10);
+          const totalCostValue = availableDecimos * item.costPricePerDecimo;
+          return {
+            ...item,
+            availableDecimos,
+            availableSeries,
+            totalCostValue
+          };
+        });
+      }, [currentLotteryEntries, currentDistributions, currentLoteroReturns, data.settings.defaultCostPrice]);
+
+      const kpis = useMemo(() => {
+        let totalDecimosRec = 0;
+        let totalSeriesRec = 0;
+        let totalDecimosRep = 0;
+        let totalDecimosPeña = 0;
+        let totalDecimosClientes = 0;
+
+        let valorCosteRecibido = 0;
+        let valorVentaRepartido = 0;
+        let totalCosteLoteroRepartido = 0;
+        let totalBeneficioPotencial = 0;
+
+        currentLotteryEntries.forEach(entry => {
+          totalDecimosRec += entry.decimos;
+          totalSeriesRec += entry.series;
+          valorCosteRecibido += entry.decimos * (entry.costPricePerDecimo || data.settings.defaultCostPrice || 20);
+        });
+
+        currentLoteroReturns.forEach(ret => {
+          totalDecimosRec -= Number(ret.decimos || 0);
+          valorCosteRecibido -= Number(ret.totalCost || 0);
+        });
+
+        currentDistributions.forEach(dist => {
+          totalDecimosRep += dist.decimos;
+          if (dist.personId === 'p_club') {
+            totalDecimosPeña += dist.decimos;
+          } else {
+            totalDecimosClientes += dist.decimos;
+          }
+          valorVentaRepartido += dist.totalAmount;
+          totalCosteLoteroRepartido += (dist.totalCostAmount || (dist.decimos * (dist.costPricePerDecimo || 20)));
+          totalBeneficioPotencial += (dist.totalProfitAmount || (dist.decimos * (dist.surchargePerDecimo || 0)));
+        });
+
+        const totalDecimosDisp = Math.max(0, totalDecimosRec - totalDecimosRep);
+        const totalSeriesDisp = Math.floor(totalDecimosDisp / 10);
+        const totalSeriesRep = (totalDecimosRep / 10).toFixed(1);
+        const valorCosteDisponible = Math.max(0, valorCosteRecibido - totalCosteLoteroRepartido);
+
+        let dineroTotalCobrado = 0;
+        let dineroPendienteTotal = 0;
+
+        currentDistributions.forEach(dist => {
+          dineroTotalCobrado += Number(dist.paidAmount || 0);
+          const pending = Number(dist.totalAmount || 0) - Number(dist.paidAmount || 0);
+          if (pending > 0) dineroPendienteTotal += pending;
+        });
+
+        let dineroPagadoAlLotero = 0;
+        currentLoteroPayments.forEach(p => {
+          dineroPagadoAlLotero += Number(p.amount || 0);
+        });
+
+        const deudaTotalInicialLotero = valorCosteRecibido;
+        const deudaPendienteRealLotero = Math.max(0, deudaTotalInicialLotero - dineroPagadoAlLotero);
+
+        const ratioCobro = valorVentaRepartido > 0 ? (dineroTotalCobrado / valorVentaRepartido) : 0;
+        const beneficioCobradoReal = totalBeneficioPotencial * ratioCobro;
+        const beneficioPendienteCobro = Math.max(0, totalBeneficioPotencial - beneficioCobradoReal);
+
+        return {
+          totalDecimosRec,
+          totalSeriesRec,
+          totalDecimosRep,
+          totalDecimosPeña,
+          totalDecimosClientes,
+          totalSeriesRep,
+          totalDecimosDisp,
+          totalSeriesDisp,
+          valorCosteRecibido,
+          valorVentaRepartido,
+          valorCosteDisponible,
+          dineroTotalCobrado,
+          dineroPendienteTotal,
+          deudaTotalInicialLotero,
+          dineroPagadoAlLotero,
+          deudaPendienteRealLotero,
+          totalBeneficioPotencial,
+          beneficioCobradoReal,
+          beneficioPendienteCobro
+        };
+      }, [currentLotteryEntries, currentDistributions, currentLoteroPayments, currentLoteroReturns, data.settings.defaultCostPrice]);
+
+      // --- GESTIÓN DE PERFILES DE PRECIOS MÚLTIPLES ---
+      const handleAddPriceProfile = (newProf) => {
+        const profileObj = {
+          id: 'prof_' + Date.now(),
+          name: newProf.name.trim(),
+          costPrice: Number(newProf.costPrice) || 20,
+          surcharge: Number(newProf.surcharge) || 0
+        };
+
+        setData(prev => ({
+          ...prev,
+          settings: {
+            ...prev.settings,
+            priceProfiles: [...(prev.settings.priceProfiles || []), profileObj]
+          }
+        }));
+        showToast(`Perfil de precio "${profileObj.name}" añadido`);
+      };
+
+      const handleDeletePriceProfile = (profId) => {
+        if ((priceProfiles || []).length <= 1) {
+          showToast('Debes mantener al menos un perfil de precios.', 'error');
+          return;
+        }
+        if (!confirm('¿Eliminar este perfil de precios?')) return;
+
+        setData(prev => ({
+          ...prev,
+          settings: {
+            ...prev.settings,
+            priceProfiles: prev.settings.priceProfiles.filter(p => p.id !== profId)
+          }
+        }));
+        showToast('Perfil de precio eliminado');
+      };
+
+      // --- BORRAR CAMPAÑA ---
+      const handleDeleteCampaign = (campId) => {
+        const camp = data.campaigns.find(c => c.id === campId);
+        if (!camp) return;
+
+        const confirmMsg = `¿Estás completamente seguro de borrar la campaña "${camp.name}" y todo su historial asociado?`;
+        if (!confirm(confirmMsg)) return;
+
+        let remainingCampaigns = data.campaigns.filter(c => c.id !== campId);
+
+        if (remainingCampaigns.length === 0) {
+          remainingCampaigns = [{
+            id: 'camp_' + Date.now(),
+            name: 'Lotería de Navidad ' + new Date().getFullYear(),
+            defaultCostPrice: 20,
+            defaultSurcharge: 3,
+            status: 'active',
+            year: new Date().getFullYear().toString(),
+            createdAt: new Date().toISOString().split('T')[0]
+          }];
+        }
+
+        const nextActiveId = remainingCampaigns[0].id;
+
+        setData(prev => ({
+          ...prev,
+          campaigns: remainingCampaigns,
+          activeCampaignId: nextActiveId,
+          lotteryEntries: prev.lotteryEntries.filter(e => e.campaignId !== campId),
+          distributions: prev.distributions.filter(d => d.campaignId !== campId),
+          payments: (prev.payments || []).filter(p => p.campaignId !== campId),
+          loteroPayments: (prev.loteroPayments || []).filter(p => p.campaignId !== campId),
+          loteroReturns: (prev.loteroReturns || []).filter(p => p.campaignId !== campId),
+          movements: prev.movements.filter(m => m.campaignId !== campId)
+        }));
+
+        showToast(`Campaña "${camp.name}" eliminada`);
+      };
+
+      // --- REINICIAR CAMPAÑA ACTIVA A 0 ---
+      const handleResetActiveCampaignOnly = () => {
+        const confirmMsg = `¿Estás seguro de que deseas reiniciar a CERO la campaña "${activeCampaign.name}"?\n\nSe vaciarán todas las entradas, repartos, cobros y pagos de esta campaña.\n(Tus personas y otras campañas no se borrarán).`;
+        if (!confirm(confirmMsg)) return;
+
+        setData(prev => ({
+          ...prev,
+          lotteryEntries: prev.lotteryEntries.filter(e => e.campaignId !== activeCampaign.id),
+          distributions: prev.distributions.filter(d => d.campaignId !== activeCampaign.id),
+          payments: (prev.payments || []).filter(p => p.campaignId !== activeCampaign.id),
+          loteroPayments: (prev.loteroPayments || []).filter(p => p.campaignId !== activeCampaign.id),
+          loteroReturns: (prev.loteroReturns || []).filter(p => p.campaignId !== activeCampaign.id),
+          movements: prev.movements.filter(m => m.campaignId !== activeCampaign.id)
+        }));
+
+        showToast(`Campaña "${activeCampaign.name}" reiniciada a 0`);
+      };
+
+      // --- VACIAR TODO A 0 ---
+      const handleStartCleanCampaign = () => {
+        if (confirm('¿Vaciar COMPLETAMENTE la base de datos y reiniciar el sistema a cero?')) {
+          setData({
+            campaigns: [{ id: 'camp_' + Date.now(), name: 'Lotería de Navidad ' + new Date().getFullYear(), defaultCostPrice: 20, defaultSurcharge: 3, status: 'active', year: new Date().getFullYear().toString(), createdAt: new Date().toISOString().split('T')[0] }],
+            activeCampaignId: 'camp_' + Date.now(),
+            settings: { 
+              appName: 'Control Lotería de Navidad', 
+              userName: 'Mi Lotería', 
+              defaultCostPrice: 20, 
+              defaultSurcharge: 3, 
+              lowStockThreshold: 10, 
+              currencySymbol: '€', 
+              clubEntityName: '⭐ Lotería de la Peña / Asociación',
+              priceProfiles: [
+                { id: 'prof_1', name: 'Estándar (+3€ beneficio)', costPrice: 20, surcharge: 3 },
+                { id: 'prof_2', name: 'Reducido (+2€ beneficio)', costPrice: 20, surcharge: 2 }
+              ]
+            },
+            people: [
+              { id: 'p_club', name: '⭐ Lotería de la Peña / Asociación', phone: '-', email: '-', notes: 'Lotería propia jugada por el club/peña', isClub: true }
+            ],
+            lotteryEntries: [],
+            distributions: [],
+            payments: [],
+            loteroPayments: [],
+            loteroReturns: [],
+            movements: []
+          });
+          showToast('Base de datos reiniciada a 0');
+        }
+      };
+
+      const handleResetDemoData = () => {
+        if (confirm('¿Restaurar datos de prueba iniciales de demostración?')) {
+          setData(INITIAL_DEMO_DATA);
+          showToast('Datos demo restaurados');
+        }
+      };
+
+      // --- EXPORTAR EXCEL ---
+      const exportExcelEspanol = () => {
+        if (!currentDistributions.length) {
+          showToast('No hay repartos para exportar en esta campaña', 'error');
+          return;
+        }
+
+        const rows = [];
+        currentDistributions.forEach(dist => {
+          const person = data.people.find(p => p.id === dist.personId);
+          const pending = dist.totalAmount - dist.paidAmount;
+
+          rows.push({
+            'NOMBRE': person ? person.name : 'Cliente',
+            'FECHA ENTREGA': formatDateTime(dist.date),
+            'CANTIDAD': `${dist.decimos} décimos`,
+            'PAGADO': `${Number(dist.paidAmount || 0).toFixed(2)} €`,
+            'DEVUELVE': `${Number(dist.returnedDecimos || 0)} décimos`,
+            'NUMERO': dist.number,
+            'SERIES ANTI-ROBO': dist.seriesIdent || 'No ind.',
+            'TOTAL IMPORTE': `${Number(dist.totalAmount || 0).toFixed(2)} €`,
+            'PENDIENTE DE PAGO': `${Number(pending || 0).toFixed(2)} €`,
+            'ESTADO': dist.status === 'paid' ? 'PAGADO' : (dist.paidAmount > 0 ? 'PARCIAL' : 'PENDIENTE')
+          });
+        });
+
+        const separator = ';';
+        const headers = Object.keys(rows[0]);
+        const csvContent = headers.join(separator) + '\n' + rows.map(r => headers.map(h => `"${(r[h] ?? '').toString().replace(/"/g, '""')}"`).join(separator)).join('\n');
+        
+        const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.setAttribute('download', `Informe_Loteria_${activeCampaign.name.replace(/\s+/g, '_')}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast('Informe Excel/CSV descargado');
+      };
+
+      // --- PAGAR AL LOTERO ---
+      const handlePayLotero = ({ amount, method, date, notes }) => {
+        const payVal = Number(amount) || 0;
+        if (payVal <= 0) {
+          showToast('Introduce un importe válido.', 'error');
+          return;
+        }
+
+        const paymentObj = {
+          id: 'lot_pay_' + Date.now(),
+          campaignId: activeCampaign.id,
+          amount: payVal,
+          method: method || 'Efectivo',
+          date: date || new Date().toISOString(),
+          notes: notes || 'Entrega a cuenta administración'
+        };
+
+        const movementObj = {
+          id: 'mov_' + Date.now(),
+          campaignId: activeCampaign.id,
+          type: 'PAGO LOTERO',
+          category: 'lotero',
+          number: '-',
+          decimos: 0,
+          personName: 'Administración Lotería',
+          amount: payVal,
+          date: paymentObj.date,
+          notes: `Entrega a cuenta de ${formatCurrency(payVal)} al lotero (${method})${notes ? ' - ' + notes : ''}`
+        };
+
+        setData(prev => ({
+          ...prev,
+          loteroPayments: [paymentObj, ...(prev.loteroPayments || [])],
+          movements: [movementObj, ...prev.movements]
+        }));
+
+        showToast(`Pago de ${formatCurrency(payVal)} al lotero guardado`);
+        setIsPayLoteroOpen(false);
+      };
+
+      // --- DEVOLUCIÓN AL LOTERO ---
+      const handleReturnToLotero = ({ number, quantity, notes }) => {
+        const num = number.trim();
+        const numDecimos = Number(quantity) || 0;
+
+        const invItem = inventoryByNumber.find(i => i.number === num);
+        const availableStock = invItem ? invItem.availableDecimos : 0;
+
+        if (numDecimos <= 0) {
+          showToast('Introduce una cantidad válida.', 'error');
+          return;
+        }
+
+        if (numDecimos > availableStock) {
+          showToast(`No puedes devolver ${numDecimos} décimos: solo tienes ${availableStock} disponibles en stock sin repartir.`, 'error');
+          return;
+        }
+
+        const costPrice = invItem ? invItem.costPricePerDecimo : (data.settings.defaultCostPrice || 20);
+        const totalCost = numDecimos * costPrice;
+
+        const returnObj = {
+          id: 'lot_ret_' + Date.now(),
+          campaignId: activeCampaign.id,
+          number: num,
+          decimos: numDecimos,
+          totalCost,
+          date: new Date().toISOString(),
+          notes: notes || 'Devolución de sobrante al lotero'
+        };
+
+        const movementObj = {
+          id: 'mov_' + Date.now(),
+          campaignId: activeCampaign.id,
+          type: 'DEVOLUCIÓN LOTERO',
+          category: 'lotero',
+          number: num,
+          decimos: -numDecimos,
+          personName: 'Administración Lotería',
+          amount: -totalCost,
+          date: returnObj.date,
+          notes: `Devolución al lotero: ${numDecimos} décimos del nº ${num} (-${formatCurrency(totalCost)} en deuda)${notes ? ' - ' + notes : ''}`
+        };
+
+        setData(prev => ({
+          ...prev,
+          loteroReturns: [returnObj, ...(prev.loteroReturns || [])],
+          movements: [movementObj, ...prev.movements]
+        }));
+
+        showToast(`Devolución de ${numDecimos} décimos al lotero registrada`);
+        setIsReturnLoteroOpen(false);
+      };
+
+      // --- PEÑA ---
+      const handleAddClubLottery = ({ number, quantity, seriesIdent, notes }) => {
+        const num = number.trim();
+        const numDecimos = Number(quantity) || 0;
+
+        const invItem = inventoryByNumber.find(i => i.number === num);
+        const currentStock = invItem ? invItem.availableDecimos : 0;
+
+        if (numDecimos > currentStock) {
+          showToast(`Stock insuficiente. Solo tienes ${currentStock} décimos del número ${num}.`, 'error');
+          return;
+        }
+
+        const costPrice = invItem ? invItem.costPricePerDecimo : (data.settings.defaultCostPrice || 20);
+        const totalCostAmount = numDecimos * costPrice;
+        const clubName = data.settings.clubEntityName || '⭐ Lotería de la Peña / Asociación';
+
+        const distObj = {
+          id: 'dist_club_' + Date.now(),
+          campaignId: activeCampaign.id,
+          personId: 'p_club',
+          number: num,
+          decimos: numDecimos,
+          returnedDecimos: 0,
+          seriesIdent: seriesIdent || 'Lotería propia de la peña',
+          costPricePerDecimo: costPrice,
+          surchargePerDecimo: 0,
+          sellingPricePerDecimo: costPrice,
+          totalAmount: totalCostAmount,
+          totalCostAmount: totalCostAmount,
+          totalProfitAmount: 0,
+          paidAmount: totalCostAmount,
+          status: 'paid',
+          date: new Date().toISOString(),
+          notes: notes || 'Lotería jugada por la peña'
+        };
+
+        const movementObj = {
+          id: 'mov_' + Date.now(),
+          campaignId: activeCampaign.id,
+          type: 'PEÑA',
+          category: 'entrega',
+          number: num,
+          decimos: numDecimos,
+          personName: clubName,
+          amount: totalCostAmount,
+          date: new Date().toISOString(),
+          notes: `Lotería reservada para ${clubName}: ${numDecimos} déc. a coste ${costPrice}€`
+        };
+
+        setData(prev => ({
+          ...prev,
+          distributions: [distObj, ...prev.distributions],
+          movements: [movementObj, ...prev.movements]
+        }));
+
+        showToast(`${numDecimos} décimos asignados a la Peña con éxito`);
+        setIsAddClubLotteryOpen(false);
+      };
+
+      const handleCreateCampaign = ({ name, year, defaultCostPrice, defaultSurcharge }) => {
+        const newCampId = 'camp_' + Date.now();
+        const newCamp = {
+          id: newCampId,
+          name: name.trim(),
+          year: String(year).trim() || new Date().getFullYear().toString(),
+          defaultCostPrice: Number(defaultCostPrice) || 20,
+          defaultSurcharge: Number(defaultSurcharge) || 0,
+          status: 'active',
+          createdAt: new Date().toISOString().split('T')[0]
+        };
+
+        setData(prev => ({
+          ...prev,
+          campaigns: [newCamp, ...prev.campaigns],
+          activeCampaignId: newCampId,
+          settings: { 
+            ...prev.settings, 
+            defaultCostPrice: newCamp.defaultCostPrice,
+            defaultSurcharge: newCamp.defaultSurcharge
+          }
+        }));
+
+        showToast(`Campaña "${newCamp.name}" creada y activada`);
+        setIsCampaignsModalOpen(false);
+      };
+
+      const handleSelectCampaign = (campId) => {
+        const camp = data.campaigns.find(c => c.id === campId);
+        if (!camp) return;
+        setData(prev => ({
+          ...prev,
+          activeCampaignId: camp.id,
+          settings: { 
+            ...prev.settings, 
+            defaultCostPrice: camp.defaultCostPrice || prev.settings.defaultCostPrice,
+            defaultSurcharge: camp.defaultSurcharge !== undefined ? camp.defaultSurcharge : prev.settings.defaultSurcharge
+          }
+        }));
+        showToast(`Cambiado a: ${camp.name}`);
+        setIsCampaignsModalOpen(false);
+      };
+
+      const handleToggleCloseCampaign = (campId) => {
+        const camp = data.campaigns.find(c => c.id === campId);
+        if (!camp) return;
+
+        const isCurrentlyClosed = camp.status === 'closed';
+        const newStatus = isCurrentlyClosed ? 'active' : 'closed';
+        const confirmMsg = isCurrentlyClosed ? `¿Reabrir la campaña "${camp.name}"?` : `¿Cerrar la campaña "${camp.name}"?`;
+
+        if (!confirm(confirmMsg)) return;
+
+        setData(prev => ({
+          ...prev,
+          campaigns: prev.campaigns.map(c => c.id === campId ? { ...c, status: newStatus } : c)
+        }));
+
+        showToast(isCurrentlyClosed ? `Campaña reabierta` : `Campaña cerrada`);
+      };
+
+      const handleAddLotteryEntry = (newEntry) => {
+        const id = 'ent_' + Date.now();
+        const numSeries = Number(newEntry.series) || 0;
+        const numDecimos = Number(newEntry.decimos) || 0;
+        const totalDecimos = (numSeries * 10) + numDecimos;
+        const costPrice = Number(newEntry.costPricePerDecimo) || data.settings.defaultCostPrice || 20;
+        
+        const entryObj = {
+          id,
+          campaignId: activeCampaign.id,
+          number: newEntry.number.trim(),
+          series: numSeries,
+          decimos: totalDecimos,
+          seriesRange: newEntry.seriesRange.trim() || '',
+          date: newEntry.date || new Date().toISOString().split('T')[0],
+          supplier: newEntry.supplier || 'Administración Lotería',
+          costPricePerDecimo: costPrice,
+          notes: newEntry.notes || ''
+        };
+
+        const movementObj = {
+          id: 'mov_' + Date.now(),
+          campaignId: activeCampaign.id,
+          type: 'ENTRADA',
+          category: 'loteria',
+          number: entryObj.number,
+          decimos: totalDecimos,
+          personName: entryObj.supplier,
+          amount: totalDecimos * costPrice,
+          date: new Date().toISOString(),
+          notes: `Recogida: ${totalDecimos} décimos [${entryObj.seriesRange || 'Series no especif.'}] a coste ${costPrice}€`
+        };
+
+        setData(prev => ({
+          ...prev,
+          lotteryEntries: [entryObj, ...prev.lotteryEntries],
+          movements: [movementObj, ...prev.movements]
+        }));
+
+        showToast(`Recogida guardada: ${totalDecimos} décimos`);
+        setIsAddLotteryOpen(false);
+      };
+
+      const handleDeleteLotteryEntry = (entryId) => {
+        const entry = data.lotteryEntries.find(e => e.id === entryId);
+        if (!entry) return;
+
+        const currentStock = inventoryByNumber.find(i => i.number === entry.number)?.availableDecimos || 0;
+        if (currentStock - entry.decimos < 0) {
+          showToast(`No puedes borrar esta entrada: ya has repartido décimos de este lote.`, 'error');
+          return;
+        }
+
+        if (!confirm(`¿Eliminar la entrada de ${entry.decimos} décimos?`)) return;
+
+        setData(prev => ({
+          ...prev,
+          lotteryEntries: prev.lotteryEntries.filter(e => e.id !== entryId)
+        }));
+
+        showToast(`Entrada eliminada`);
+      };
+
+      const handleAddDistribution = (distData) => {
+        const num = distData.number.trim();
+        const numSeries = Number(distData.series) || 0;
+        const numDecimos = Number(distData.decimos) || 0;
+        const requestedDecimos = (numSeries * 10) + numDecimos;
+
+        const invItem = inventoryByNumber.find(i => i.number === num);
+        const currentStock = invItem ? invItem.availableDecimos : 0;
+
+        if (requestedDecimos > currentStock) {
+          showToast(`Stock insuficiente. Solo tienes ${currentStock} décimos disponibles.`, 'error');
+          return false;
+        }
+
+        const costPrice = Number(distData.costPricePerDecimo) || data.settings.defaultCostPrice || 20;
+        const surcharge = Number(distData.surchargePerDecimo) || 0;
+        const sellingPrice = costPrice + surcharge;
+
+        const totalCostAmount = requestedDecimos * costPrice;
+        const totalProfitAmount = requestedDecimos * surcharge;
+        const totalAmount = requestedDecimos * sellingPrice;
+
+        let paidAmount = 0;
+        if (distData.paymentState === 'paid') paidAmount = totalAmount;
+        else if (distData.paymentState === 'partial') paidAmount = Number(distData.partialAmount) || 0;
+
+        let status = 'pending';
+        if (paidAmount >= totalAmount) status = 'paid';
+        else if (paidAmount > 0) status = 'partial';
+
+        const distId = 'dist_' + Date.now();
+        const personObj = data.people.find(p => p.id === distData.personId);
+        const personName = personObj ? `${personObj.name}` : 'Cliente';
+
+        const distributionObj = {
+          id: distId,
+          campaignId: activeCampaign.id,
+          personId: distData.personId,
+          number: num,
+          decimos: requestedDecimos,
+          returnedDecimos: 0,
+          seriesIdent: distData.seriesIdent || '',
+          costPricePerDecimo: costPrice,
+          surchargePerDecimo: surcharge,
+          sellingPricePerDecimo: sellingPrice,
+          totalCostAmount,
+          totalProfitAmount,
+          totalAmount,
+          paidAmount,
+          status,
+          date: new Date().toISOString(),
+          notes: distData.notes || ''
+        };
+
+        const newMovements = [{
+          id: 'mov_' + Date.now(),
+          campaignId: activeCampaign.id,
+          type: 'REPARTO',
+          category: 'entrega',
+          number: num,
+          decimos: requestedDecimos,
+          personName,
+          amount: totalAmount,
+          date: new Date().toISOString(),
+          notes: `Entrega a ${personName}: ${requestedDecimos} déc. a ${sellingPrice}€`
+        }];
+
+        const newPayments = [];
+        if (paidAmount > 0) {
+          newPayments.push({
+            id: 'pay_' + Date.now(),
+            campaignId: activeCampaign.id,
+            personId: distData.personId,
+            amount: paidAmount,
+            method: distData.paymentMethod || 'Efectivo',
+            date: new Date().toISOString(),
+            notes: status === 'paid' ? 'Pago completo de entrega' : 'Cobro inicial a cuenta'
+          });
+        }
+
+        setData(prev => ({
+          ...prev,
+          distributions: [distributionObj, ...prev.distributions],
+          payments: [...newPayments, ...(prev.payments || [])],
+          movements: [...newMovements, ...prev.movements]
+        }));
+
+        showToast(`Lotería añadida a ${personName}`);
+        setIsQuickRepartoOpen(false);
+        setPreselectedPersonId('');
+        return true;
+      };
+
+      const handleRegisterPaymentForPerson = (paymentData) => {
+        const { personId, amount, method, notes } = paymentData;
+        const payVal = Number(amount) || 0;
+        if (payVal <= 0) {
+          showToast('Introduce un importe válido.', 'error');
+          return;
+        }
+
+        const personObj = data.people.find(p => p.id === personId);
+        const personName = personObj ? personObj.name : 'Cliente';
+
+        let remainingPayment = payVal;
+        const updatedDistributions = data.distributions.map(d => {
+          if (d.campaignId === activeCampaign.id && d.personId === personId && d.status !== 'cancelled' && d.decimos > 0) {
+            const pendingInDist = d.totalAmount - d.paidAmount;
+            if (pendingInDist > 0 && remainingPayment > 0) {
+              const applyAmount = Math.min(remainingPayment, pendingInDist);
+              const newPaid = d.paidAmount + applyAmount;
+              remainingPayment -= applyAmount;
+              return {
+                ...d,
+                paidAmount: newPaid,
+                status: newPaid >= d.totalAmount ? 'paid' : 'partial'
+              };
+            }
+          }
+          return d;
+        });
+
+        const paymentObj = {
+          id: 'pay_' + Date.now(),
+          campaignId: activeCampaign.id,
+          personId,
+          amount: payVal,
+          method: method || 'Efectivo',
+          date: new Date().toISOString(),
+          notes: notes || 'Cobro registrado'
+        };
+
+        setData(prev => ({
+          ...prev,
+          distributions: updatedDistributions,
+          payments: [paymentObj, ...(prev.payments || [])]
+        }));
+
+        showToast(`Cobro de ${formatCurrency(payVal)} guardado para ${personName}`);
+        setIsAddPaymentOpen(false);
+        setSelectedPersonForPayment(null);
+      };
+
+      const handleReturnLottery = ({ distributionId, returnedDecimos, notes }) => {
+        const dist = data.distributions.find(d => d.id === distributionId);
+        if (!dist) return;
+
+        const retDec = Number(returnedDecimos) || 0;
+        if (retDec <= 0 || retDec > dist.decimos) {
+          showToast(`Cantidad inválida. Máximo ${dist.decimos} décimos.`, 'error');
+          return;
+        }
+
+        const newTotalDecimos = dist.decimos - retDec;
+        const newTotalAmount = newTotalDecimos * dist.sellingPricePerDecimo;
+        const newPaidAmount = Math.min(dist.paidAmount, newTotalAmount);
+
+        setData(prev => ({
+          ...prev,
+          distributions: prev.distributions.map(d => {
+            if (d.id === distributionId) {
+              return {
+                ...d,
+                decimos: newTotalDecimos,
+                totalAmount: newTotalAmount,
+                paidAmount: newPaidAmount,
+                status: newTotalDecimos === 0 ? 'cancelled' : (newPaidAmount >= newTotalAmount ? 'paid' : 'partial')
+              };
+            }
+            return d;
+          })
+        }));
+
+        showToast(`Devolución de ${retDec} décimos guardada`);
+        setIsReturnModalOpen(false);
+        setSelectedReturnDist(null);
+      };
+
+      const handleDeleteDistributionPermanent = (distId) => {
+        if (!confirm(`¿Eliminar definitivamente este reparto?`)) return;
+        setData(prev => ({ ...prev, distributions: prev.distributions.filter(d => d.id !== distId) }));
+        showToast(`Reparto eliminado`);
+      };
+
+      const handleDeletePayment = (paymentId) => {
+        if (!confirm(`¿Eliminar este cobro?`)) return;
+        setData(prev => ({ ...prev, payments: (data.payments || []).filter(p => p.id !== paymentId) }));
+        showToast(`Cobro eliminado`);
+      };
+
+      const handleDeleteLoteroPayment = (payId) => {
+        if (!confirm(`¿Eliminar este pago al lotero?`)) return;
+        setData(prev => ({ ...prev, loteroPayments: (data.loteroPayments || []).filter(p => p.id !== payId) }));
+        showToast(`Pago eliminado`);
+      };
+
+      const handleDeleteLoteroReturn = (retId) => {
+        if (!confirm(`¿Eliminar esta devolución al lotero?`)) return;
+        setData(prev => ({ ...prev, loteroReturns: (data.loteroReturns || []).filter(p => p.id !== retId) }));
+        showToast(`Devolución eliminada`);
+      };
+
+      const handleDeleteMovement = (movId) => {
+        if (!confirm('¿Eliminar este apunte?')) return;
+        setData(prev => ({ ...prev, movements: prev.movements.filter(m => m.id !== movId) }));
+        showToast('Movimiento eliminado');
+      };
+
+      const handleClearAllMovements = () => {
+        if (confirm('¿Vaciar historial de movimientos?')) {
+          setData(prev => ({ ...prev, movements: prev.movements.filter(m => m.campaignId !== activeCampaign.id) }));
+          showToast('Historial vaciado');
+        }
+      };
+
+      const handleAddPerson = (personForm) => {
+        const newPerson = {
+          id: 'p_' + Date.now(),
+          name: personForm.name.trim(),
+          phone: personForm.phone.trim(),
+          email: personForm.email.trim(),
+          notes: personForm.notes || ''
+        };
+        setData(prev => ({ ...prev, people: [...prev.people, newPerson] }));
+        showToast(`Persona añadida: ${newPerson.name}`);
+        setIsAddPersonOpen(false);
+      };
+
+      const handleImportPeopleList = (importedList) => {
+        if (!importedList || !importedList.length) return;
+        setData(prev => ({ ...prev, people: [...prev.people, ...importedList] }));
+        showToast(`${importedList.length} personas importadas`);
+        setIsImportPeopleOpen(false);
+      };
+
+      const handleDeletePerson = (personId) => {
+        if (personId === 'p_club') {
+          showToast('No puedes eliminar la cuenta de la Peña.', 'error');
+          return;
+        }
+        if (!confirm(`¿Eliminar persona?`)) return;
+        setData(prev => ({ ...prev, people: prev.people.filter(p => p.id !== personId) }));
+        showToast(`Persona eliminada`);
+      };
+
+      const handleUpdateClubName = (newName) => {
+        const trimmed = newName.trim();
+        if (!trimmed) return;
+        setData(prev => ({
+          ...prev,
+          settings: { ...prev.settings, clubEntityName: trimmed },
+          people: prev.people.map(p => p.id === 'p_club' ? { ...p, name: trimmed } : p)
+        }));
+        showToast('Nombre de la Peña actualizado');
+      };
+
+      const filteredMovements = useMemo(() => {
+        if (movTabFilter === 'todos') return currentMovements;
+        return currentMovements.filter(m => m.category === movTabFilter);
+      }, [currentMovements, movTabFilter]);
+
+      return (
+        <div className="min-h-screen max-w-full overflow-x-hidden bg-slate-900 text-slate-100 flex flex-col md:flex-row pb-20 md:pb-0 font-sans">
+          
+          {toastMessage && (
+            <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 text-white text-sm ${toastMessage.type === 'error' ? 'bg-rose-600' : 'bg-emerald-600'}`}>
+              <i className={`fas ${toastMessage.type === 'error' ? 'fa-circle-exclamation' : 'fa-circle-check'} text-base`}></i>
+              <span className="font-bold">{toastMessage.text}</span>
+            </div>
+          )}
+
+          {/* DESKTOP SIDEBAR */}
+          <aside className="hidden md:flex flex-col w-64 bg-slate-950 border-r border-slate-800 p-5 space-y-6 flex-shrink-0">
+            <div className="flex items-center gap-3 px-1">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-500 to-amber-400 flex items-center justify-center text-slate-950 text-2xl font-black shadow-lg">
+                🎟️
+              </div>
+              <div>
+                <h1 className="font-extrabold text-base leading-tight text-white">Lotería Navidad</h1>
+                <p className="text-xs text-amber-400 font-bold">Control Total y Liquidación</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-900 p-3.5 rounded-2xl border border-slate-800 space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-xs uppercase tracking-wider text-slate-400 font-bold">Campaña</span>
+                <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${isCampaignClosed ? 'bg-rose-500/20 text-rose-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                  {isCampaignClosed ? 'Cerrada' : 'En curso'}
+                </span>
+              </div>
+              <p className="font-black text-sm text-white truncate">{activeCampaign.name}</p>
+              <button
+                onClick={() => setIsCampaignsModalOpen(true)}
+                className="w-full py-2 px-3 bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all"
+              >
+                <i className="fas fa-folder-tree"></i> Gestionar Campañas
+              </button>
+            </div>
+
+            <nav className="flex-1 space-y-1.5">
+              {[
+                { id: 'dashboard', label: 'Inicio', icon: 'fa-house' },
+                { id: 'distributions', label: 'Repartos y Series', icon: 'fa-hand-holding-hand' },
+                { id: 'people', label: 'Personas', icon: 'fa-users' },
+                { id: 'payments', label: 'Cobros Clientes', icon: 'fa-wallet' },
+                { id: 'lotero', label: 'Lotería', icon: 'fa-building-columns' },
+                { id: 'stats', label: 'Estadísticas e Informe', icon: 'fa-chart-pie' },
+                { id: 'settings', label: 'Configuración', icon: 'fa-gear' }
+              ].map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => setCurrentTab(item.id)}
+                  className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-2xl font-bold text-sm transition-all ${currentTab === item.id ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/30' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'}`}
+                >
+                  <i className={`fas ${item.icon} w-5 text-center text-base`}></i>
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+
+            {!isCampaignClosed && (
+              <div className="space-y-2">
+                <button
+                  onClick={() => setIsAddClubLotteryOpen(true)}
+                  className="w-full py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs flex items-center justify-center gap-2 border border-amber-500/30 truncate"
+                  title={clubEntityName}
+                >
+                  <i className="fas fa-star text-amber-400"></i> + {clubEntityName}
+                </button>
+                <button
+                  onClick={() => { setPreselectedPersonId(''); setIsQuickRepartoOpen(true); }}
+                  className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-sm shadow-xl hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2"
+                >
+                  <i className="fas fa-bolt text-base"></i> + REPARTO RÁPIDO
+                </button>
+              </div>
+            )}
+          </aside>
+
+          {/* MOBILE HEADER (CON BOTÓN DE AJUSTES DIRECTO ARRIBA) */}
+          <header className="md:hidden bg-slate-950 border-b border-slate-800 p-3.5 sticky top-0 z-30 flex items-center justify-between w-full max-w-full">
+            <div className="flex items-center gap-2 overflow-hidden">
+              <span className="text-xl flex-shrink-0">🎟️</span>
+              <button onClick={() => setIsCampaignsModalOpen(true)} className="text-left truncate">
+                <div className="flex items-center gap-1 truncate">
+                  <h1 className="font-extrabold text-xs text-white truncate max-w-[110px]">{activeCampaign.name}</h1>
+                  <i className="fas fa-chevron-down text-[10px] text-amber-400 flex-shrink-0"></i>
+                </div>
+                <p className={`text-[10px] font-bold truncate ${isCampaignClosed ? 'text-rose-400' : 'text-emerald-400'}`}>
+                  {isCampaignClosed ? '● Cerrada' : '● En curso'}
+                </p>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {!isCampaignClosed && (
+                <button
+                  onClick={() => setIsAddLotteryOpen(true)}
+                  className="px-2 py-1.5 rounded-lg bg-slate-800 text-emerald-400 font-bold text-xs border border-emerald-500/30 flex items-center gap-1"
+                >
+                  <i className="fas fa-plus"></i> Recibir
+                </button>
+              )}
+              <button
+                onClick={() => setCurrentTab('settings')}
+                className="px-2.5 py-1.5 rounded-lg bg-slate-800 text-amber-400 font-bold text-xs border border-amber-500/30 flex items-center gap-1"
+                title="Ajustes"
+              >
+                <i className="fas fa-gear"></i> Ajustes
+              </button>
+            </div>
+          </header>
+
+          {/* MAIN CONTENT AREA */}
+          <main className="flex-1 w-full max-w-full overflow-x-hidden p-3.5 md:p-8 custom-scrollbar">
+            
+            {isCampaignClosed && (
+              <div className="mb-4 bg-rose-500/10 border border-rose-500/30 p-3.5 rounded-2xl flex items-center justify-between text-sm">
+                <span className="text-rose-300 font-semibold">Campaña archivada: <strong>{activeCampaign.name}</strong></span>
+                <button
+                  onClick={() => handleToggleCloseCampaign(activeCampaign.id)}
+                  className="px-3 py-1.5 bg-rose-600 text-white rounded-xl font-bold text-xs"
+                >
+                  Reabrir
+                </button>
+              </div>
+            )}
+
+            {/* TAB 1: DASHBOARD */}
+            {currentTab === 'dashboard' && (
+              <div className="space-y-4">
+                <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 p-4 sm:p-6 rounded-2xl border border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div>
+                    <button
+                      onClick={() => setIsCampaignsModalOpen(true)}
+                      className="px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold mb-1.5 inline-flex items-center gap-1.5 hover:bg-amber-500/20"
+                    >
+                      <i className="fas fa-calendar-check"></i>
+                      {activeCampaign.name}
+                      <i className="fas fa-chevron-down text-xs"></i>
+                    </button>
+                    <h2 className="text-xl sm:text-2xl font-black text-white">Panel General y Resumen</h2>
+                  </div>
+                  <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                    {!isCampaignClosed && (
+                      <>
+                        <button
+                          onClick={() => setIsAddLotteryOpen(true)}
+                          className="px-3.5 py-2.5 rounded-xl bg-slate-800 text-white font-bold text-xs text-center border border-slate-700"
+                        >
+                          <i className="fas fa-ticket mr-1 text-emerald-400"></i> Recibir Lotería
+                        </button>
+                        <button
+                          onClick={() => setIsAddClubLotteryOpen(true)}
+                          className="px-3.5 py-2.5 rounded-xl bg-slate-800 text-amber-300 font-bold text-xs text-center border border-amber-500/30 truncate max-w-[160px]"
+                        >
+                          <i className="fas fa-star mr-1"></i> {clubEntityName}
+                        </button>
+                        <button
+                          onClick={() => setIsPayLoteroOpen(true)}
+                          className="px-3.5 py-2.5 rounded-xl bg-amber-500/20 text-amber-300 font-bold text-xs text-center border border-amber-500/30"
+                        >
+                          <i className="fas fa-hand-holding-dollar mr-1"></i> Pagar Lotero
+                        </button>
+                        <button
+                          onClick={() => { setPreselectedPersonId(''); setIsQuickRepartoOpen(true); }}
+                          className="px-4 py-2.5 rounded-xl bg-emerald-500 text-slate-950 font-black text-xs text-center shadow-lg"
+                        >
+                          + Reparto Rápido
+                        </button>
+                      </>
+                    )}
+                    <button
+                      onClick={() => setCurrentTab('settings')}
+                      className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs text-center border border-slate-700"
+                    >
+                      <i className="fas fa-gear text-slate-300 mr-1"></i> Ajustes
+                    </button>
+                  </div>
+                </div>
+
+                {/* KPI Cards */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Recibida</span>
+                    <p className="text-lg sm:text-xl font-black text-white mt-1">{kpis.totalSeriesRec} ser. / {kpis.totalDecimosRec} déc.</p>
+                    <p className="text-xs text-slate-400 mt-1">Coste: <strong className="text-white font-bold">{formatCurrency(kpis.valorCosteRecibido)}</strong></p>
+                  </div>
+
+                  <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Repartida</span>
+                    <p className="text-lg sm:text-xl font-black text-white mt-1">{kpis.totalSeriesRep} ser. / {kpis.totalDecimosRep} déc.</p>
+                    <p className="text-xs text-slate-400 mt-1">Clientes: <strong>{kpis.totalDecimosClientes}</strong> | Peña: <strong className="text-amber-400">{kpis.totalDecimosPeña}</strong></p>
+                  </div>
+
+                  <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Disponible</span>
+                    <p className="text-lg sm:text-xl font-black text-amber-400 mt-1">{kpis.totalSeriesDisp} ser. / {kpis.totalDecimosDisp} déc.</p>
+                    <p className="text-xs text-slate-400 mt-1">Coste stock: <strong className="text-white font-bold">{formatCurrency(kpis.valorCosteDisponible)}</strong></p>
+                  </div>
+
+                  <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Cobros Clientes</span>
+                    <div className="mt-1 flex justify-between text-xs">
+                      <span className="text-slate-300">Cobrado:</span>
+                      <strong className="text-emerald-400 font-extrabold">{formatCurrency(kpis.dineroTotalCobrado)}</strong>
+                    </div>
+                    <div className="flex justify-between text-xs mt-0.5">
+                      <span className="text-slate-300">Pendiente:</span>
+                      <strong className="text-rose-400 font-extrabold">{formatCurrency(kpis.dineroPendienteTotal)}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* DOS VENTANAS FINANCIERAS */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  <div className="bg-slate-950 p-4 sm:p-5 rounded-2xl border border-amber-500/30 space-y-2.5">
+                    <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="p-2 rounded-xl bg-amber-500/10 text-amber-400 text-sm"><i className="fas fa-building-columns"></i></span>
+                        <h3 className="font-black text-amber-400 text-sm">1. Cuenta y Pagos al Lotero</h3>
+                      </div>
+                      {!isCampaignClosed && (
+                        <button
+                          onClick={() => setIsPayLoteroOpen(true)}
+                          className="px-3 py-1.5 bg-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-md"
+                        >
+                          + Entregar Dinero
+                        </button>
+                      )}
+                    </div>
+                    <div className="space-y-2 text-xs sm:text-sm">
+                      <div className="flex justify-between p-2.5 rounded-xl bg-slate-900">
+                        <span className="text-slate-300">Deuda total inicial por lotería ({kpis.totalDecimosRec} déc):</span>
+                        <strong className="text-white font-bold">{formatCurrency(kpis.deudaTotalInicialLotero)}</strong>
+                      </div>
+                      <div className="flex justify-between p-2.5 rounded-xl bg-slate-900">
+                        <span className="text-slate-300">Entregado a cuenta al lotero:</span>
+                        <strong className="text-emerald-400 font-bold">{formatCurrency(kpis.dineroPagadoAlLotero)}</strong>
+                      </div>
+                      <div className="flex justify-between p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-200 text-xs sm:text-sm font-semibold">
+                        <span>DEUDA PENDIENTE CON EL LOTERO:</span>
+                        <strong className="text-amber-400 font-black text-sm sm:text-base">{formatCurrency(kpis.deudaPendienteRealLotero)}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-950 p-4 sm:p-5 rounded-2xl border border-emerald-500/30 space-y-2.5">
+                    <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 text-sm"><i className="fas fa-hand-holding-dollar"></i></span>
+                        <h3 className="font-black text-emerald-400 text-sm">2. Informe de Beneficios y Recargos</h3>
+                      </div>
+                      <button
+                        onClick={exportExcelEspanol}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center gap-1"
+                      >
+                        <i className="fas fa-file-excel"></i> Excel
+                      </button>
+                    </div>
+                    <div className="space-y-2 text-xs sm:text-sm">
+                      <div className="flex justify-between p-2.5 rounded-xl bg-slate-900">
+                        <span className="text-slate-300">Décimos vendidos con recargo ({kpis.totalDecimosClientes} déc. a {activeCampaign.defaultSurcharge || 3}€):</span>
+                        <strong className="text-emerald-400 font-black">+{formatCurrency(kpis.totalBeneficioPotencial)}</strong>
+                      </div>
+                      <div className="flex justify-between p-2.5 rounded-xl bg-slate-900">
+                        <span className="text-slate-300">Beneficio cobrado y en mano:</span>
+                        <strong className="text-white font-bold">{formatCurrency(kpis.beneficioCobradoReal)}</strong>
+                      </div>
+                      <div className="flex justify-between p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-200 text-xs sm:text-sm font-semibold">
+                        <span>Beneficio pendiente de cobrar a clientes:</span>
+                        <strong className="text-emerald-400 font-black text-sm sm:text-base">{formatCurrency(kpis.beneficioPendienteCobro)}</strong>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stock por Número */}
+                <div className="bg-slate-950 rounded-2xl border border-slate-800 p-4 sm:p-5">
+                  <h3 className="font-black text-sm sm:text-base text-white mb-3 flex items-center gap-2">
+                    <i className="fas fa-cubes text-amber-400"></i> Stock por Número
+                  </h3>
+                  {inventoryByNumber.length === 0 ? (
+                    <div className="text-center py-6 text-slate-500 text-sm">No hay lotería registrada en esta campaña.</div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {inventoryByNumber.map(inv => (
+                        <div key={inv.number} className="bg-slate-900 rounded-2xl p-4 border border-slate-800">
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono text-2xl font-black text-amber-400">{inv.number}</span>
+                            <span className="text-xs font-black px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                              {inv.availableDecimos} disp.
+                            </span>
+                          </div>
+                          <div className="mt-2.5 flex justify-between text-xs border-t border-slate-800 pt-2 text-slate-300">
+                            <span>Recibidos: <strong className="text-white">{inv.decimosReceived}</strong></span>
+                            <span>Repartidos: <strong className="text-amber-400">{inv.decimosDistributed}</strong></span>
+                          </div>
+                          <div className="mt-2 text-xs bg-slate-950 p-2 rounded-xl flex justify-between">
+                            <span className="text-emerald-400 font-bold">Disponible:</span>
+                            <strong className="text-emerald-400">{inv.availableSeries} ser. / {inv.availableDecimos} déc.</strong>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: REPARTOS */}
+            {currentTab === 'distributions' && (
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2.5">
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-black text-white">Repartos y Cuentas por Persona</h2>
+                    <p className="text-xs text-slate-400">Lotería de cada miembro con su historial unificado de entregas.</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                    <button
+                      onClick={exportExcelEspanol}
+                      className="px-3 py-2 bg-slate-800 text-emerald-400 font-bold text-xs rounded-xl flex items-center gap-1.5 border border-slate-700"
+                    >
+                      <i className="fas fa-file-excel"></i> Excel (NOMBRE, PAGADO, DEVUELVE...)
+                    </button>
+                    {!isCampaignClosed && (
+                      <>
+                        <button
+                          onClick={() => setIsAddClubLotteryOpen(true)}
+                          className="px-3 py-2 bg-slate-800 text-amber-300 font-bold text-xs rounded-xl border border-amber-500/30 truncate max-w-[140px]"
+                          title={clubEntityName}
+                        >
+                          ⭐ {clubEntityName}
+                        </button>
+                        <button
+                          onClick={() => { setPreselectedPersonId(''); setIsQuickRepartoOpen(true); }}
+                          className="px-3.5 py-2 rounded-xl bg-emerald-500 text-slate-950 font-black text-xs whitespace-nowrap shadow-md"
+                        >
+                          + Reparto
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-3.5">
+                  {groupedDistributionsByPerson.map(group => {
+                    const isExpanded = !!expandedPersonIds[group.person.id];
+                    const isClub = group.person.isClub;
+
+                    return (
+                      <div key={group.person.id} className={`p-4 sm:p-5 rounded-2xl border space-y-3 shadow-lg ${isClub ? 'bg-slate-950 border-amber-500/40' : 'bg-slate-950 border-slate-800'}`}>
+                        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 border-b border-slate-800/80 pb-3">
+                          <div>
+                            <div className="flex items-center gap-2.5">
+                              <h3 className={`font-black text-base sm:text-lg ${isClub ? 'text-amber-300' : 'text-white'}`}>{group.person.name}</h3>
+                              <span className={`px-2.5 py-0.5 rounded-full text-xs font-black ${group.isFullyPaid ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                                {group.isFullyPaid ? 'AL DÍA' : `DEBE ${formatCurrency(group.totalPending)}`}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              {group.person.phone || ''} • <strong className="text-amber-400 font-bold">{group.totalDecimos} décimos</strong> ({group.deliveriesCount} {group.deliveriesCount === 1 ? 'entrega' : 'entregas'})
+                              {group.totalReturned > 0 && <span className="text-amber-300 ml-1.5">• Devueltos: <strong>{group.totalReturned} déc.</strong></span>}
+                            </p>
+                          </div>
+
+                          {!isCampaignClosed && (
+                            <div className="flex items-center gap-2">
+                              {!isClub && group.totalPending > 0 && (
+                                <button
+                                  onClick={() => {
+                                    setSelectedPersonForPayment(group);
+                                    setIsAddPaymentOpen(true);
+                                  }}
+                                  className="flex-1 sm:flex-none px-4 py-2 bg-emerald-500 text-slate-950 font-black text-xs rounded-xl shadow-md active:scale-95"
+                                >
+                                  Cobrar Deuda ({formatCurrency(group.totalPending)})
+                                </button>
+                              )}
+                              <button
+                                onClick={() => {
+                                  setPreselectedPersonId(group.person.id);
+                                  setIsQuickRepartoOpen(true);
+                                }}
+                                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs rounded-xl flex items-center gap-1.5"
+                              >
+                                <i className="fas fa-plus"></i> Entregar más
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Desglose Financiero */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-900 p-3 rounded-xl text-xs sm:text-sm">
+                          <div>
+                            <span className="text-slate-400 block text-xs">Total Venta:</span>
+                            <strong className="text-white font-black text-sm">{formatCurrency(group.totalAmount)}</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-xs">Coste Lotero:</span>
+                            <strong className="text-amber-400 font-bold">{formatCurrency(group.totalCostAmount)}</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-xs">Beneficio:</span>
+                            <strong className="text-emerald-400 font-black">+{formatCurrency(group.totalProfitAmount)}</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-xs">Ya Pagado:</span>
+                            <strong className="text-emerald-400 font-extrabold">{formatCurrency(group.totalPaid)}</strong>
+                          </div>
+                        </div>
+
+                        {/* Desplegable de Entregas */}
+                        <button
+                          onClick={() => toggleExpandPerson(group.person.id)}
+                          className="w-full py-2 px-3 bg-slate-900/60 hover:bg-slate-900 text-slate-300 text-xs font-bold rounded-xl flex justify-between items-center transition-all"
+                        >
+                          <span>
+                            <i className="fas fa-clock-rotate-left mr-1.5 text-amber-400"></i>
+                            {isExpanded ? 'Ocultar historial de entregas' : `Ver historial de las ${group.deliveriesCount} entregas`}
+                          </span>
+                          <i className={`fas ${isExpanded ? 'fa-chevron-up' : 'fa-chevron-down'} text-xs text-amber-400`}></i>
+                        </button>
+
+                        {isExpanded && (
+                          <div className="space-y-2 pt-1 border-t border-slate-800/80">
+                            {group.distributions.map((dist, idx) => (
+                              <div key={dist.id} className="p-3 bg-slate-900/90 rounded-xl border border-slate-800 space-y-1.5 text-xs sm:text-sm">
+                                <div className="flex justify-between items-center">
+                                  <div className="flex items-center gap-2">
+                                    <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-bold text-xs">#{group.deliveriesCount - idx}</span>
+                                    <span className="font-mono text-amber-400 font-black text-sm">Nº {dist.number}</span>
+                                    <span className="font-bold text-white">({dist.decimos} décimos)</span>
+                                  </div>
+                                  <span className="text-slate-400 text-xs">{formatDateTime(dist.date)}</span>
+                                </div>
+
+                                {dist.seriesIdent && (
+                                  <div className="text-xs text-amber-300 bg-slate-950 px-2.5 py-1 rounded-lg">
+                                    Series: <strong>{dist.seriesIdent}</strong>
+                                  </div>
+                                )}
+
+                                <div className="flex justify-between items-center text-xs text-slate-300 bg-slate-950 p-2 rounded-lg">
+                                  <span>Precio: {dist.costPricePerDecimo}€ + {dist.surchargePerDecimo}€ = <strong>{dist.sellingPricePerDecimo}€/déc</strong></span>
+                                  <span>Total: <strong className="text-white">{formatCurrency(dist.totalAmount)}</strong> (Pagado: {formatCurrency(dist.paidAmount)})</span>
+                                </div>
+
+                                {!isCampaignClosed && (
+                                  <div className="flex justify-end gap-2 pt-1">
+                                    <button
+                                      onClick={() => { setSelectedReturnDist(dist); setIsReturnModalOpen(true); }}
+                                      className="px-2.5 py-1 bg-amber-500/20 text-amber-300 font-bold text-xs rounded-lg"
+                                    >
+                                      Devolver décimos
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteDistributionPermanent(dist.id)}
+                                      className="px-2.5 py-1 bg-rose-500/20 text-rose-400 font-bold text-xs rounded-lg"
+                                    >
+                                      <i className="fas fa-trash-can"></i>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {groupedDistributionsByPerson.length === 0 && <p className="p-6 text-center text-sm text-slate-500">Sin repartos registrados en esta campaña.</p>}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: PERSONAS */}
+            {currentTab === 'people' && (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-lg sm:text-xl font-black text-white">Directorio de Personas</h2>
+                  <div className="flex gap-2">
+                    <button onClick={() => setIsImportPeopleOpen(true)} className="px-3 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs">
+                      <i className="fas fa-file-import mr-1"></i> Importar
+                    </button>
+                    <button onClick={() => setIsAddPersonOpen(true)} className="px-3.5 py-2 rounded-xl bg-emerald-500 text-slate-950 font-black text-xs">
+                      + Persona
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {data.people.map(person => {
+                    const personDists = currentDistributions.filter(d => d.personId === person.id);
+                    const totalImporte = personDists.reduce((s, d) => s + d.totalAmount, 0);
+                    const totalPaid = personDists.reduce((s, d) => s + d.paidAmount, 0);
+                    const totalPending = totalImporte - totalPaid;
+
+                    return (
+                      <div key={person.id} className="bg-slate-950 rounded-2xl border border-slate-800 p-4 flex flex-col justify-between">
+                        <div>
+                          <div className="flex justify-between items-start mb-2.5">
+                            <div>
+                              <h3 className={`font-extrabold text-base ${person.isClub ? 'text-amber-300' : 'text-white'}`}>{person.name}</h3>
+                              <p className="text-xs text-slate-400">{person.phone || 'Sin teléfono'}</p>
+                            </div>
+                            {!person.isClub && (
+                              <button onClick={() => handleDeletePerson(person.id)} className="text-slate-500 hover:text-rose-400 p-1.5">
+                                <i className="fas fa-trash-can text-sm"></i>
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="bg-slate-900 rounded-xl p-3 text-xs sm:text-sm space-y-1.5">
+                            <div className="flex justify-between"><span>Lotería entregada:</span> <strong className="text-white">{formatCurrency(totalImporte)}</strong></div>
+                            <div className="flex justify-between"><span>Total cobrado:</span> <strong className="text-emerald-400">{formatCurrency(totalPaid)}</strong></div>
+                            <div className="flex justify-between border-t border-slate-800 pt-1.5">
+                              <span>Saldo pendiente:</span>
+                              <strong className={totalPending > 0 ? "text-rose-400 font-black" : "text-emerald-400 font-black"}>
+                                {totalPending > 0 ? `Debe ${formatCurrency(totalPending)}` : 'Al día'}
+                              </strong>
+                            </div>
+                          </div>
+                        </div>
+
+                        <button onClick={() => setSelectedPersonDetail(person)} className="w-full mt-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-bold border border-slate-800">
+                          Ver Ficha y Series
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: COBROS */}
+            {currentTab === 'payments' && (
+              <div className="space-y-4">
+                <h2 className="text-lg sm:text-xl font-black text-white">Historial de Cobros a Clientes ({activeCampaign.name})</h2>
+                
+                <div className="space-y-3 sm:hidden">
+                  {currentPayments.map(pay => {
+                    const personObj = data.people.find(p => p.id === pay.personId);
+                    return (
+                      <div key={pay.id} className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex justify-between items-center text-xs sm:text-sm">
+                        <div>
+                          <strong className="text-white text-base block">{personObj ? personObj.name : 'Cliente'}</strong>
+                          <span className="text-slate-400 text-xs">{formatDateTime(pay.date)} • <span className="text-slate-300 font-semibold">{pay.method}</span></span>
+                          {pay.notes && <span className="text-slate-400 text-xs block mt-0.5">{pay.notes}</span>}
+                        </div>
+                        <div className="flex items-center gap-2.5">
+                          <span className="font-black text-emerald-400 text-base">{formatCurrency(pay.amount)}</span>
+                          {!isCampaignClosed && (
+                            <button onClick={() => handleDeletePayment(pay.id)} className="p-2 text-rose-400 hover:bg-rose-500/20 rounded-lg">
+                              <i className="fas fa-trash-can"></i>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {currentPayments.length === 0 && <p className="p-6 text-center text-sm text-slate-500">No hay cobros registrados en esta campaña.</p>}
+                </div>
+
+                <div className="hidden sm:block bg-slate-950 rounded-2xl border border-slate-800 overflow-x-auto">
+                  <table className="w-full text-left text-sm text-slate-300">
+                    <thead className="bg-slate-900 text-slate-400 uppercase text-xs">
+                      <tr>
+                        <th className="p-3.5">Fecha</th>
+                        <th className="p-3.5">Persona</th>
+                        <th className="p-3.5">Importe</th>
+                        <th className="p-3.5">Método</th>
+                        <th className="p-3.5">Concepto</th>
+                        {!isCampaignClosed && <th className="p-3.5 text-right">Acción</th>}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                      {currentPayments.map(pay => {
+                        const personObj = data.people.find(p => p.id === pay.personId);
+                        return (
+                          <tr key={pay.id}>
+                            <td className="p-3.5">{formatDateTime(pay.date)}</td>
+                            <td className="p-3.5 font-bold text-white">{personObj ? personObj.name : 'Cliente'}</td>
+                            <td className="p-3.5 font-black text-emerald-400 text-base">{formatCurrency(pay.amount)}</td>
+                            <td className="p-3.5"><span className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-200 text-xs font-bold">{pay.method}</span></td>
+                            <td className="p-3.5 text-slate-400">{pay.notes || '-'}</td>
+                            {!isCampaignClosed && (
+                              <td className="p-3.5 text-right">
+                                <button onClick={() => handleDeletePayment(pay.id)} className="px-3 py-1.5 rounded-xl bg-rose-500/20 text-rose-400 font-bold text-xs">
+                                  <i className="fas fa-trash-can"></i>
+                                </button>
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 5: LOTERÍA (ADMINISTRACIÓN) */}
+            {currentTab === 'lotero' && (
+              <div className="space-y-5">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-black text-white">Lotería ({activeCampaign.name})</h2>
+                    <p className="text-xs text-slate-400">Control unificado de décimos recibidos de la administración, devoluciones y pagos.</p>
+                  </div>
+                  {!isCampaignClosed && (
+                    <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                      <button
+                        onClick={() => setIsAddLotteryOpen(true)}
+                        className="flex-1 sm:flex-none px-3.5 py-2.5 bg-emerald-500 text-slate-950 font-black text-xs rounded-xl shadow-md"
+                      >
+                        + Recoger Lotería
+                      </button>
+                      <button
+                        onClick={() => setIsReturnLoteroOpen(true)}
+                        className="flex-1 sm:flex-none px-3.5 py-2.5 bg-amber-500/20 text-amber-300 font-black text-xs rounded-xl shadow-md border border-amber-500/40"
+                      >
+                        🔄 Devolver al Lotero
+                      </button>
+                      <button
+                        onClick={() => setIsPayLoteroOpen(true)}
+                        className="flex-1 sm:flex-none px-3.5 py-2.5 bg-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-md"
+                      >
+                        + Pagar Dinero
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Tarjetas de Balance */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                    <span className="text-xs text-slate-400 font-bold uppercase">Total Lotería Recogida</span>
+                    <p className="text-xl font-black text-white mt-1">{formatCurrency(kpis.deudaTotalInicialLotero)}</p>
+                    <span className="text-xs text-slate-400">{kpis.totalDecimosRec} décimos netos a coste</span>
+                  </div>
+                  <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                    <span className="text-xs text-slate-400 font-bold uppercase">Entregado a la Administración</span>
+                    <p className="text-xl font-black text-emerald-400 mt-1">{formatCurrency(kpis.dineroPagadoAlLotero)}</p>
+                    <span className="text-xs text-slate-400">{currentLoteroPayments.length} pagos realizados</span>
+                  </div>
+                  <div className="bg-slate-950 p-4 rounded-2xl border border-amber-500/40 bg-amber-500/5">
+                    <span className="text-xs text-amber-300 font-bold uppercase">Deuda Restante con el Lotero</span>
+                    <p className="text-xl font-black text-amber-400 mt-1">{formatCurrency(kpis.deudaPendienteRealLotero)}</p>
+                    <span className="text-xs text-amber-200">Pendiente de liquidar al proveedor</span>
+                  </div>
+                </div>
+
+                {/* Subsección 1: Recogidas */}
+                <div className="space-y-3 pt-2">
+                  <h3 className="font-extrabold text-white text-sm sm:text-base flex items-center gap-2">
+                    <i className="fas fa-ticket text-emerald-400"></i> Lotes y Series Recogidas de la Administración
+                  </h3>
+                  <div className="space-y-2.5">
+                    {currentLotteryEntries.map(e => (
+                      <div key={e.id} className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-xs sm:text-sm">
+                        <div>
+                          <div className="flex items-center gap-2.5">
+                            <span className="font-mono text-xl font-black text-amber-400">Nº {e.number}</span>
+                            <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 font-bold rounded-lg text-xs">{e.decimos} décimos ({e.series} ser.)</span>
+                          </div>
+                          <p className="text-amber-300 font-medium text-xs mt-1">
+                            Series recogidas: <strong>{e.seriesRange || 'No especificadas'}</strong>
+                          </p>
+                          <p className="text-slate-400 text-xs mt-0.5">{e.supplier} • {formatDate(e.date)} {e.notes ? `• ${e.notes}` : ''}</p>
+                        </div>
+                        {!isCampaignClosed && (
+                          <button onClick={() => handleDeleteLotteryEntry(e.id)} className="px-3 py-1.5 rounded-xl bg-rose-500/20 text-rose-400 font-bold text-xs self-end sm:self-center">
+                            <i className="fas fa-trash-can mr-1"></i> Borrar
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {currentLotteryEntries.length === 0 && <p className="p-4 text-center text-xs text-slate-500">No hay lotería recogida en esta campaña.</p>}
+                  </div>
+                </div>
+
+                {/* Subsección 2: Devoluciones */}
+                <div className="space-y-3 pt-2">
+                  <h3 className="font-extrabold text-white text-sm sm:text-base flex items-center gap-2">
+                    <i className="fas fa-rotate-left text-amber-400"></i> Lotería Devuelta al Lotero
+                  </h3>
+                  <div className="space-y-2.5">
+                    {currentLoteroReturns.map(ret => (
+                      <div key={ret.id} className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex justify-between items-center text-xs sm:text-sm">
+                        <div>
+                          <strong className="text-amber-400 text-base block">-{ret.decimos} décimos (Nº {ret.number})</strong>
+                          <span className="text-slate-400 text-xs">{formatDateTime(ret.date)} • Descontado de deuda: <strong className="text-white">{formatCurrency(ret.totalCost)}</strong></span>
+                          {ret.notes && <span className="text-slate-400 text-xs block mt-0.5">{ret.notes}</span>}
+                        </div>
+                        {!isCampaignClosed && (
+                          <button onClick={() => handleDeleteLoteroReturn(ret.id)} className="p-2 text-rose-400 hover:bg-rose-500/20 rounded-xl">
+                            <i className="fas fa-trash-can"></i>
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {currentLoteroReturns.length === 0 && <p className="p-4 text-center text-xs text-slate-500">No hay devoluciones registradas al lotero en esta campaña.</p>}
+                  </div>
+                </div>
+
+                {/* Subsección 3: Pagos */}
+                <div className="space-y-3 pt-2">
+                  <h3 className="font-extrabold text-white text-sm sm:text-base flex items-center gap-2">
+                    <i className="fas fa-wallet text-emerald-400"></i> Pagos y Entregas de Dinero al Lotero
+                  </h3>
+                  <div className="space-y-2.5">
+                    {currentLoteroPayments.map(pay => (
+                      <div key={pay.id} className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex justify-between items-center text-xs sm:text-sm">
+                        <div>
+                          <strong className="text-white text-base block">{formatCurrency(pay.amount)}</strong>
+                          <span className="text-slate-400 text-xs">{formatDateTime(pay.date)} • Método: <strong className="text-slate-200">{pay.method}</strong></span>
+                          {pay.notes && <span className="text-slate-400 text-xs block mt-0.5">{pay.notes}</span>}
+                        </div>
+                        {!isCampaignClosed && (
+                          <button onClick={() => handleDeleteLoteroPayment(pay.id)} className="p-2 text-rose-400 hover:bg-rose-500/20 rounded-xl">
+                            <i className="fas fa-trash-can"></i>
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {currentLoteroPayments.length === 0 && <p className="p-4 text-center text-xs text-slate-500">No hay pagos registrados al lotero en esta campaña.</p>}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 6: ESTADÍSTICAS, INFORME Y AUDITORÍA INTEGRADOS */}
+            {currentTab === 'stats' && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-lg sm:text-xl font-black text-white">Estadísticas, Informe y Auditoría ({activeCampaign.name})</h2>
+                  <button onClick={exportExcelEspanol} className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-md">
+                    <i className="fas fa-file-excel"></i> Descargar Excel
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 text-center space-y-2">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">% Lotería Repartida</h3>
+                    <span className="text-4xl sm:text-5xl font-black text-emerald-400 block">
+                      {kpis.totalDecimosRec > 0 ? Math.round((kpis.totalDecimosRep / kpis.totalDecimosRec) * 100) : 0}%
+                    </span>
+                    <p className="text-xs sm:text-sm text-slate-300 font-medium">
+                      Repartidos {kpis.totalDecimosRep} de {kpis.totalDecimosRec} décimos totales.
+                    </p>
+                    <div className="pt-2 text-xs text-slate-400 flex justify-around border-t border-slate-800">
+                      <span>Clientes: <strong className="text-white">{kpis.totalDecimosClientes}</strong></span>
+                      <span>Peña: <strong className="text-amber-300">{kpis.totalDecimosPeña}</strong></span>
+                      <span>Sobrante: <strong className="text-emerald-400">{kpis.totalDecimosDisp}</strong></span>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-2.5 text-xs sm:text-sm">
+                    <h3 className="font-extrabold text-slate-300 mb-1">Cálculo Exhaustivo de Beneficio</h3>
+                    <div className="flex justify-between p-2.5 rounded-xl bg-slate-900">
+                      <span>Lotería vendida a clientes:</span>
+                      <strong className="text-white font-bold">{kpis.totalDecimosClientes} décimos</strong>
+                    </div>
+                    <div className="flex justify-between p-2.5 rounded-xl bg-slate-900">
+                      <span>Margen / Beneficio por décimo:</span>
+                      <strong className="text-emerald-400 font-bold">+{activeCampaign.defaultSurcharge || 3} € / décimo</strong>
+                    </div>
+                    <div className="flex justify-between p-3 rounded-xl bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-bold">
+                      <span>CÁLCULO TOTAL BENEFICIO ({kpis.totalDecimosClientes} × {activeCampaign.defaultSurcharge || 3}€):</span>
+                      <strong className="text-emerald-400 font-black text-base">{formatCurrency(kpis.totalBeneficioPotencial)}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* HISTORIAL / AUDITORÍA INTEGRADO */}
+                <div className="bg-slate-950 rounded-2xl border border-slate-800 p-4 sm:p-5 space-y-4">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-800 pb-3">
+                    <div>
+                      <h3 className="font-black text-white text-base">Auditoría / Historial de Movimientos</h3>
+                      <p className="text-xs text-slate-400">Registro completo de entradas, repartos, cobros y pagos.</p>
+                    </div>
+                    {!isCampaignClosed && (
+                      <button onClick={handleClearAllMovements} className="px-3 py-1.5 rounded-xl bg-rose-500/20 text-rose-400 font-bold text-xs">
+                        Vaciar Historial
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                    {[
+                      { id: 'todos', label: 'Todos' },
+                      { id: 'entrega', label: '📦 Entregas' },
+                      { id: 'cobro', label: '💰 Cobros' },
+                      { id: 'lotero', label: '🏦 Lotero' }
+                    ].map(tab => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setMovTabFilter(tab.id)}
+                        className={`py-2 px-2 rounded-xl font-bold text-center transition-all ${movTabFilter === tab.id ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-slate-300 border border-slate-800'}`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="space-y-2.5 max-h-80 overflow-y-auto custom-scrollbar">
+                    {filteredMovements.map(mov => (
+                      <div key={mov.id} className="bg-slate-900 p-3.5 rounded-xl border border-slate-800/80 space-y-1.5 text-xs">
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-amber-400">{mov.type}</span>
+                          <span className="text-slate-400">{formatDateTime(mov.date)}</span>
+                        </div>
+                        <div className="flex justify-between items-center font-semibold">
+                          <span className="text-white">{mov.personName} {mov.number && mov.number !== '-' ? `(Nº ${mov.number})` : ''}</span>
+                          <span className="font-black text-white">{formatCurrency(mov.amount)}</span>
+                        </div>
+                        <p className="text-slate-400 text-[11px]">{mov.notes}</p>
+                      </div>
+                    ))}
+                    {filteredMovements.length === 0 && <p className="p-4 text-center text-sm text-slate-500">No hay movimientos.</p>}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 7: CONFIGURACIÓN */}
+            {currentTab === 'settings' && (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-lg sm:text-xl font-black text-white">Configuración y Precios</h2>
+                  <button
+                    onClick={() => setIsCampaignsModalOpen(true)}
+                    className="px-3.5 py-2 bg-emerald-500 text-slate-950 font-black text-xs rounded-xl shadow-md"
+                  >
+                    + Campañas
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-3 text-xs sm:text-sm">
+                    <h3 className="font-extrabold text-white border-b border-slate-800 pb-2">Precios Base ({activeCampaign.name})</h3>
+                    <div>
+                      <label className="text-slate-300 block mb-1 font-semibold">Coste Compra al Lotero (€)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={data.settings.defaultCostPrice}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const newCost = val === '' ? '' : Number(val);
+                          setData(prev => ({
+                            ...prev,
+                            settings: { ...prev.settings, defaultCostPrice: newCost },
+                            campaigns: prev.campaigns.map(c => c.id === activeCampaign.id ? { ...c, defaultCostPrice: newCost } : c)
+                          }));
+                        }}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white font-black text-base"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-300 block mb-1 font-semibold">Recargo / Beneficio por Décimo (€)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={data.settings.defaultSurcharge}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const newSur = val === '' ? '' : Number(val);
+                          setData(prev => ({
+                            ...prev,
+                            settings: { ...prev.settings, defaultSurcharge: newSur },
+                            campaigns: prev.campaigns.map(c => c.id === activeCampaign.id ? { ...c, defaultSurcharge: newSur } : c)
+                          }));
+                        }}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white font-black text-base"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-amber-300 block mb-1 font-bold">Nombre de la Peña / Asociación / Club</label>
+                      <input
+                        type="text"
+                        value={clubEntityName}
+                        onChange={(e) => handleUpdateClubName(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white font-bold text-sm"
+                        placeholder="Ej: Peña El Botijo"
+                      />
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-800 space-y-2.5">
+                      <h4 className="font-extrabold text-amber-400 text-xs uppercase tracking-wider">Opciones de Reinicio y Limpieza</h4>
+                      <button
+                        onClick={handleResetActiveCampaignOnly}
+                        className="w-full py-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 font-black text-xs transition-all"
+                      >
+                        <i className="fas fa-rotate-left mr-1.5"></i> Reiniciar solo "{activeCampaign.name}" a 0
+                      </button>
+                      <button
+                        onClick={handleStartCleanCampaign}
+                        className="w-full py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs transition-all"
+                      >
+                        <i className="fas fa-trash-can mr-1.5"></i> Vaciar Todo el Sistema (Limpieza Total a 0)
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-2.5 text-xs sm:text-sm">
+                    <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                      <h3 className="font-extrabold text-white">Campañas Registradas ({data.campaigns.length})</h3>
+                      <button onClick={() => setIsCampaignsModalOpen(true)} className="text-xs text-amber-400 font-bold hover:underline">
+                        + Crear nueva
+                      </button>
+                    </div>
+                    <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+                      {data.campaigns.map(c => (
+                        <div key={c.id} className="p-3 rounded-xl bg-slate-900 flex justify-between items-center">
+                          <div className="truncate max-w-[160px]">
+                            <strong className="text-white text-sm block truncate">{c.name}</strong>
+                            <span className="text-slate-400 text-xs">Coste: {c.defaultCostPrice || 20}€ | Recargo: +{c.defaultSurcharge || 0}€</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {c.id === activeCampaign.id ? (
+                              <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 font-black text-xs">Activa</span>
+                            ) : (
+                              <button onClick={() => handleSelectCampaign(c.id)} className="text-amber-400 text-xs font-bold hover:underline">
+                                Abrir
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleDeleteCampaign(c.id)}
+                              className="p-1.5 text-rose-400 hover:bg-rose-500/20 rounded-lg"
+                              title="Borrar campaña y su historial"
+                            >
+                              <i className="fas fa-trash-can text-xs"></i>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </main>
+
+          {/* BARRA INFERIOR MÓVIL EXACTAMENTE CON LOS 6 BOTONES ESENCIALES */}
+          <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-950 border-t border-slate-800 px-1 py-2 z-30 flex justify-around items-center w-full max-w-full">
+            {[
+              { id: 'dashboard', label: 'Inicio', icon: 'fa-house' },
+              { id: 'distributions', label: 'Repartos', icon: 'fa-hand-holding-hand' },
+              { id: 'people', label: 'Personas', icon: 'fa-users' },
+              { id: 'payments', label: 'Cobros', icon: 'fa-wallet' },
+              { id: 'lotero', label: 'Lotería', icon: 'fa-building-columns' },
+              { id: 'stats', label: 'Informe', icon: 'fa-chart-pie' }
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setCurrentTab(tab.id)}
+                className={`flex flex-col items-center gap-1 py-1 px-1.5 rounded-xl text-xs font-bold transition-all ${currentTab === tab.id ? 'text-emerald-400' : 'text-slate-500'}`}
+              >
+                <i className={`fas ${tab.icon} text-base`}></i>
+                <span className="text-[10px] truncate max-w-[50px]">{tab.label}</span>
+              </button>
+            ))}
+          </nav>
+
+          {/* MODALES RESPONSIVOS */}
+          {isPayLoteroOpen && (
+            <PayLoteroModal
+              pendingDebt={kpis.deudaPendienteRealLotero}
+              onClose={() => setIsPayLoteroOpen(false)}
+              onSubmit={handlePayLotero}
+            />
+          )}
+
+          {isReturnLoteroOpen && (
+            <ReturnLoteroModal
+              inventory={inventoryByNumber}
+              onClose={() => setIsReturnLoteroOpen(false)}
+              onSubmit={handleReturnToLotero}
+            />
+          )}
+
+          {isAddClubLotteryOpen && (
+            <AddClubLotteryModal
+              inventory={inventoryByNumber}
+              onClose={() => setIsAddClubLotteryOpen(false)}
+              onSubmit={handleAddClubLottery}
+            />
+          )}
+
+          {isQuickRepartoOpen && !isCampaignClosed && (
+            <QuickRepartoModal
+              people={data.people}
+              inventory={inventoryByNumber}
+              initialPersonId={preselectedPersonId}
+              defaultCostPrice={data.settings.defaultCostPrice || 20}
+              defaultSurcharge={data.settings.defaultSurcharge || 0}
+              priceProfiles={priceProfiles}
+              onClose={() => { setIsQuickRepartoOpen(false); setPreselectedPersonId(''); }}
+              onSubmit={handleAddDistribution}
+              onAddPerson={() => setIsAddPersonOpen(true)}
+            />
+          )}
+
+          {isReturnModalOpen && selectedReturnDist && (
+            <ReturnLotteryModal
+              distribution={selectedReturnDist}
+              person={data.people.find(p => p.id === selectedReturnDist.personId)}
+              onClose={() => { setIsReturnModalOpen(false); setSelectedReturnDist(null); }}
+              onSubmit={handleReturnLottery}
+            />
+          )}
+
+          {isImportPeopleOpen && (
+            <ImportPeopleModal
+              onClose={() => setIsImportPeopleOpen(false)}
+              onImport={handleImportPeopleList}
+            />
+          )}
+
+          {isAddLotteryOpen && !isCampaignClosed && (
+            <AddLotteryModal
+              defaultCostPrice={data.settings.defaultCostPrice || 20}
+              onClose={() => setIsAddLotteryOpen(false)}
+              onSubmit={handleAddLotteryEntry}
+            />
+          )}
+
+          {isAddPersonOpen && (
+            <AddPersonModal
+              onClose={() => setIsAddPersonOpen(false)}
+              onSubmit={handleAddPerson}
+            />
+          )}
+
+          {isAddPaymentOpen && selectedPersonForPayment && (
+            <AddPaymentModal
+              personGroup={selectedPersonForPayment}
+              onClose={() => {
+                setIsAddPaymentOpen(false);
+                setSelectedPersonForPayment(null);
+              }}
+              onSubmit={handleRegisterPaymentForPerson}
+            />
+          )}
+
+          {isCampaignsModalOpen && (
+            <CampaignsManagerModal
+              campaigns={data.campaigns}
+              activeCampaignId={data.activeCampaignId}
+              onClose={() => setIsCampaignsModalOpen(false)}
+              onSelect={handleSelectCampaign}
+              onCreate={handleCreateCampaign}
+              onToggleClose={handleToggleCloseCampaign}
+              onDelete={handleDeleteCampaign}
+            />
+          )}
+
+          {selectedPersonDetail && (
+            <PersonDetailModal
+              person={selectedPersonDetail}
+              distributions={currentDistributions.filter(d => d.personId === selectedPersonDetail.id)}
+              payments={(data.payments || []).filter(p => p.personId === selectedPersonDetail.id && p.campaignId === activeCampaign.id)}
+              onClose={() => setSelectedPersonDetail(null)}
+              onOpenPayment={(group) => {
+                setSelectedPersonForPayment(group);
+                setIsAddPaymentOpen(true);
+              }}
+            />
+          )}
+
+        </div>
+      );
+    }
+
+    // Modal: Devolver al Lotero
+    function ReturnLoteroModal({ inventory, onClose, onSubmit }) {
+      const [number, setNumber] = useState(inventory.length > 0 ? inventory[0].number : '');
+      const [quantity, setQuantity] = useState('1');
+      const [notes, setNotes] = useState('');
+
+      const selectedInv = inventory.find(i => i.number === number);
+      const maxStock = selectedInv ? selectedInv.availableDecimos : 0;
+      const costPrice = selectedInv ? selectedInv.costPricePerDecimo : 20;
+      const numQty = Number(quantity) || 0;
+      const totalCostReduction = numQty * costPrice;
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        if (!number) { alert('Selecciona un número.'); return; }
+        if (numQty <= 0 || numQty > maxStock) {
+          alert(`Introduce una cantidad válida entre 1 y ${maxStock} décimos.`);
+          return;
+        }
+        onSubmit({ number, quantity: numQty, notes });
+      };
+
+      return (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3.5">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-5 space-y-3.5 text-xs sm:text-sm">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-amber-500/10 text-amber-400"><i className="fas fa-rotate-left"></i></span>
+                <h3 className="font-black text-white text-base">Devolver Lotería al Lotero</h3>
+              </div>
+              <button onClick={onClose} className="text-slate-400 p-1">✕</button>
+            </div>
+            <p className="text-slate-400 text-xs">
+              Devuelve décimos sobrantes sin repartir al proveedor. Se restarán de tu stock disponible y se descontarán de tu deuda con el lotero.
+            </p>
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <div>
+                <label className="text-slate-300 block mb-1 font-bold">Número de Lotería</label>
+                <select value={number} onChange={(e) => setNumber(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-mono font-black text-amber-400" required>
+                  {inventory.map(inv => (
+                    <option key={inv.number} value={inv.number}>
+                      Nº {inv.number} — Stock disp: {inv.availableDecimos} déc.
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-slate-300 block mb-1 font-bold">¿Cuántos décimos devuelves? (Máx: {maxStock})</label>
+                <input
+                  type="number"
+                  min="1"
+                  max={maxStock}
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-black text-xl text-center"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-slate-300 block mb-1 font-semibold">Motivo / Notas</label>
+                <input
+                  type="text"
+                  placeholder="Ej: Devolución por sobrante"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white"
+                />
+              </div>
+              <div className="p-3 bg-slate-950 rounded-xl flex justify-between items-center text-xs">
+                <span className="text-slate-400">Descontar de deuda con el lotero:</span>
+                <strong className="text-amber-400 font-black text-sm">-{formatCurrency(totalCostReduction)}</strong>
+              </div>
+              <button type="submit" className="w-full py-3.5 rounded-xl bg-amber-500 text-slate-950 font-black text-sm shadow-xl">
+                Confirmar Devolución ({numQty} décimos)
+              </button>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    // Modal: Pagar al Lotero
+    function PayLoteroModal({ pendingDebt, onClose, onSubmit }) {
+      const [amount, setAmount] = useState(String(pendingDebt > 0 ? pendingDebt : ''));
+      const [method, setMethod] = useState('Transferencia');
+      const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+      const [notes, setNotes] = useState('');
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        const numVal = Number(amount) || 0;
+        if (numVal <= 0) {
+          alert('Introduce un importe válido.');
+          return;
+        }
+        onSubmit({ amount: numVal, method, date, notes });
+      };
+
+      return (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3.5">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-5 space-y-3.5 text-xs sm:text-sm">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
+              <h3 className="font-black text-white text-base">Entrega a Cuenta al Lotero</h3>
+              <button onClick={onClose} className="text-slate-400 p-1">✕</button>
+            </div>
+            <div className="bg-slate-950 p-3 rounded-xl space-y-1">
+              <span className="text-slate-400 text-xs">Deuda total pendiente con la administración:</span>
+              <strong className="text-amber-400 font-black text-lg block">{formatCurrency(pendingDebt)}</strong>
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <div>
+                <label className="text-slate-300 block mb-1 font-bold">Fecha del Pago</label>
+                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white font-bold" required />
+              </div>
+              <div>
+                <label className="text-slate-300 block mb-1 font-bold">Importe Entregado (€)</label>
+                <input type="number" step="any" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-black text-xl text-center" required />
+              </div>
+              <div>
+                <label className="text-slate-300 block mb-1 font-semibold">Método de Pago</label>
+                <select value={method} onChange={(e) => setMethod(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white font-medium">
+                  <option value="Transferencia">Transferencia Bancaria</option>
+                  <option value="Efectivo en mano">Efectivo en Administración</option>
+                  <option value="Bizum">Bizum</option>
+                </select>
+              </div>
+              <button type="submit" className="w-full py-3.5 rounded-xl bg-amber-500 text-slate-950 font-black text-sm shadow-xl">
+                Confirmar Pago al Lotero ({formatCurrency(Number(amount) || 0)})
+              </button>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    // Modal: Lotería para la Peña
+    function AddClubLotteryModal({ inventory, onClose, onSubmit }) {
+      const [number, setNumber] = useState(inventory.length > 0 ? inventory[0].number : '');
+      const [quantity, setQuantity] = useState('5');
+      const [seriesIdent, setSeriesIdent] = useState('');
+      const [notes, setNotes] = useState('Lotería propia jugada por la peña');
+
+      const selectedInv = inventory.find(i => i.number === number);
+      const costPrice = selectedInv ? selectedInv.costPricePerDecimo : 20;
+      const numQty = Number(quantity) || 0;
+      const totalCost = numQty * costPrice;
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        if (!number) { alert('Selecciona un número.'); return; }
+        if (numQty <= 0) { alert('Introduce una cantidad válida.'); return; }
+        onSubmit({ number, quantity: numQty, seriesIdent, notes });
+      };
+
+      return (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3.5">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-5 space-y-3.5 text-xs sm:text-sm">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-amber-500/10 text-amber-400"><i className="fas fa-star"></i></span>
+                <h3 className="font-black text-white text-base">Lotería para la Peña / Club</h3>
+              </div>
+              <button onClick={onClose} className="text-slate-400 p-1">✕</button>
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <div>
+                <label className="text-slate-300 block mb-1 font-bold">Número de Lotería</label>
+                <select value={number} onChange={(e) => setNumber(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-mono font-black text-amber-400" required>
+                  {inventory.map(inv => (
+                    <option key={inv.number} value={inv.number}>
+                      Nº {inv.number} — Disp: {inv.availableDecimos} déc. (Coste: {inv.costPricePerDecimo}€)
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-slate-300 block mb-1 font-bold">Cantidad de Décimos</label>
+                <input type="number" min="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-black text-xl text-center" required />
+              </div>
+              <div>
+                <label className="text-amber-300 block mb-1 font-bold">Series / Fracciones Reservadas (Anti-Robo)</label>
+                <input type="text" placeholder="Ej: Serie 001 (Fracciones 1 a 5)" value={seriesIdent} onChange={(e) => setSeriesIdent(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white" />
+              </div>
+              <button type="submit" className="w-full py-3.5 rounded-xl bg-amber-500 text-slate-950 font-black text-sm shadow-xl">
+                Confirmar Reserva para la Peña ({numQty} décimos)
+              </button>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    // Modal: Reparto (CON SELECTOR RÁPIDO DE PERFILES DE PRECIOS)
+    function QuickRepartoModal({ people, inventory, initialPersonId, defaultCostPrice, defaultSurcharge, priceProfiles, onClose, onSubmit, onAddPerson }) {
+      const [personId, setPersonId] = useState(initialPersonId || '');
+      const [number, setNumber] = useState(inventory.length > 0 ? inventory[0].number : '');
+      const [unitType, setUnitType] = useState('decimos');
+      const [quantity, setQuantity] = useState('1');
+      const [costPricePerDecimo, setCostPricePerDecimo] = useState(String(defaultCostPrice));
+      const [surchargePerDecimo, setSurchargePerDecimo] = useState(String(defaultSurcharge));
+      const [seriesIdent, setSeriesIdent] = useState('');
+      const [paymentState, setPaymentState] = useState('paid');
+      const [partialAmount, setPartialAmount] = useState('20');
+      const [paymentMethod, setPaymentMethod] = useState('Efectivo');
+
+      useEffect(() => {
+        if (initialPersonId) setPersonId(initialPersonId);
+      }, [initialPersonId]);
+
+      const handleProfileSelect = (profId) => {
+        const prof = (priceProfiles || []).find(p => p.id === profId);
+        if (prof) {
+          setCostPricePerDecimo(String(prof.costPrice));
+          setSurchargePerDecimo(String(prof.surcharge));
+        }
+      };
+
+      const numericQty = Number(quantity) || 0;
+      const numericCost = Number(costPricePerDecimo) || 0;
+      const numericSurcharge = Number(surchargePerDecimo) || 0;
+
+      const calculatedDecimos = unitType === 'series' ? numericQty * 10 : numericQty;
+      const sellingPrice = numericCost + numericSurcharge;
+      const totalAmount = calculatedDecimos * sellingPrice;
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        if (!personId) { alert('Selecciona una persona.'); return; }
+        if (!number) { alert('Selecciona un número.'); return; }
+        if (calculatedDecimos <= 0) { alert('Introduce una cantidad válida.'); return; }
+
+        onSubmit({
+          personId,
+          number,
+          series: unitType === 'series' ? numericQty : 0,
+          decimos: unitType === 'decimos' ? numericQty : 0,
+          seriesIdent,
+          costPricePerDecimo: numericCost || defaultCostPrice,
+          surchargePerDecimo: numericSurcharge,
+          paymentState,
+          partialAmount: paymentState === 'partial' ? (Number(partialAmount) || 0) : 0,
+          paymentMethod
+        });
+      };
+
+      return (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-t-3xl sm:rounded-2xl p-5 space-y-3.5 max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
+              <h3 className="font-extrabold text-white text-base">Nuevo Reparto de Lotería</h3>
+              <button onClick={onClose} className="text-slate-400 p-1">✕</button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-3 text-xs sm:text-sm">
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="font-bold text-slate-300">Persona / Cliente</label>
+                  <button type="button" onClick={onAddPerson} className="text-amber-400 font-bold text-xs">+ Nueva</button>
+                </div>
+                <select value={personId} onChange={(e) => setPersonId(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-medium" required>
+                  <option value="">-- Seleccionar Persona --</option>
+                  {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-300 block mb-1">Número de Lotería</label>
+                <select value={number} onChange={(e) => setNumber(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-mono font-black text-amber-400" required>
+                  {inventory.map(inv => (
+                    <option key={inv.number} value={inv.number}>
+                      Nº {inv.number} — Disp: {inv.availableDecimos} déc.
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* SELECTOR RÁPIDO DE PERFIL DE PRECIOS */}
+              <div>
+                <label className="text-amber-300 block mb-1 font-bold text-xs">⚡ Aplicar Margen / Perfil Predefinido</label>
+                <select onChange={(e) => handleProfileSelect(e.target.value)} className="w-full bg-slate-950 border border-amber-500/30 rounded-xl p-2.5 text-amber-300 font-bold text-xs">
+                  <option value="">-- Seleccionar margen de beneficio --</option>
+                  {(priceProfiles || []).map(prof => (
+                    <option key={prof.id} value={prof.id}>
+                      {prof.name} (Venta: {prof.costPrice + prof.surcharge}€)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="font-bold text-slate-300 block mb-1">Formato</label>
+                  <div className="grid grid-cols-2 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                    <button type="button" onClick={() => setUnitType('decimos')} className={`py-2 rounded-lg font-bold ${unitType === 'decimos' ? 'bg-emerald-600 text-white' : 'text-slate-400'}`}>Décimos</button>
+                    <button type="button" onClick={() => setUnitType('series')} className={`py-2 rounded-lg font-bold ${unitType === 'series' ? 'bg-emerald-600 text-white' : 'text-slate-400'}`}>Series</button>
+                  </div>
+                </div>
+                <div>
+                  <label className="font-bold text-slate-300 block mb-1">Cantidad</label>
+                  <input type="number" min="1" placeholder="0" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white font-black" required />
+                </div>
+              </div>
+
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-amber-300 block mb-1 font-bold">Coste Lotero (€)</label>
+                  <input type="number" step="any" min="1" value={costPricePerDecimo} onChange={(e) => setCostPricePerDecimo(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white font-black" required />
+                </div>
+                <div>
+                  <label className="text-emerald-300 block mb-1 font-bold">Recargo (€)</label>
+                  <input type="number" step="any" min="0" value={surchargePerDecimo} onChange={(e) => setSurchargePerDecimo(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white font-black" required />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-amber-300 block mb-1 font-bold">Nº de Serie / Fracciones (Anti-Robo)</label>
+                <input type="text" placeholder="Ej: Serie 004 (Fracc 1 a 5)" value={seriesIdent} onChange={(e) => setSeriesIdent(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white" />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-300 block mb-1">Estado del Pago</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { id: 'paid', label: 'Pagado' },
+                    { id: 'partial', label: 'A cuenta' },
+                    { id: 'pending', label: 'A Deber' }
+                  ].map(st => (
+                    <button key={st.id} type="button" onClick={() => setPaymentState(st.id)} className={`py-2 rounded-xl font-bold border ${paymentState === st.id ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400' : 'bg-slate-950 border-slate-800 text-slate-400'}`}>
+                      {st.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {paymentState === 'partial' && (
+                <div>
+                  <label className="text-slate-300 block mb-1 font-bold">Importe a cuenta (€)</label>
+                  <input type="number" max={totalAmount} value={partialAmount} onChange={(e) => setPartialAmount(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white font-black" />
+                </div>
+              )}
+
+              <button type="submit" className="w-full py-3.5 rounded-xl bg-emerald-500 text-slate-950 font-black text-sm shadow-xl">
+                Confirmar Reparto ({formatCurrency(totalAmount)})
+              </button>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    // Modal: Devolución
+    function ReturnLotteryModal({ distribution, person, onClose, onSubmit }) {
+      const [returnedDecimos, setReturnedDecimos] = useState(String(distribution.decimos));
+      const [notes, setNotes] = useState('');
+      const maxDecimos = distribution.decimos;
+      const numRet = Number(returnedDecimos) || 0;
+      const returnedSellingValue = numRet * (distribution.sellingPricePerDecimo || 20);
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        if (numRet <= 0 || numRet > maxDecimos) {
+          alert(`Introduce una cantidad válida entre 1 y ${maxDecimos}.`);
+          return;
+        }
+        onSubmit({ distributionId: distribution.id, returnedDecimos: numRet, notes });
+      };
+
+      return (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3.5">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-5 space-y-3.5 text-xs sm:text-sm">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
+              <h3 className="font-black text-white text-base">Devolución de Lotería</h3>
+              <button onClick={onClose} className="text-slate-400 p-1">✕</button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <div>
+                <label className="text-slate-300 block mb-1 font-bold">¿Cuántos décimos devuelve? (Máx: {maxDecimos})</label>
+                <input type="number" min="1" max={maxDecimos} value={returnedDecimos} onChange={(e) => setReturnedDecimos(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-black text-xl text-center" required />
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-950 flex justify-between">
+                <span className="text-slate-400">Descontar de deuda:</span>
+                <strong className="text-amber-400 font-black">{formatCurrency(returnedSellingValue)}</strong>
+              </div>
+              <div>
+                <label className="text-slate-300 block mb-1 font-semibold">Motivo</label>
+                <input type="text" placeholder="Ej: No pudo venderlos" value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white" />
+              </div>
+              <button type="submit" className="w-full py-3 rounded-xl bg-amber-500 text-slate-950 font-black text-xs">
+                Confirmar Devolución ({numRet} décimos al stock)
+              </button>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    // Modal: Importar Personas
+    function ImportPeopleModal({ onClose, onImport }) {
+      const [rawText, setRawText] = useState('');
+
+      const handleFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => setRawText(event.target.result);
+        reader.readAsText(file);
+      };
+
+      const parsePeople = () => {
+        if (!rawText.trim()) return [];
+        const lines = rawText.split('\n');
+        const list = [];
+        lines.forEach((line, index) => {
+          const clean = line.trim();
+          if (!clean) return;
+          let parts = clean.split(/[;,	]/);
+          if (parts.length === 1) parts = [clean, '', ''];
+          const name = parts[0]?.trim();
+          const phone = parts[1]?.trim() || '';
+          const notes = parts[2]?.trim() || '';
+          if (name && name.toLowerCase() !== 'nombre' && name.toLowerCase() !== 'name') {
+            list.push({ id: 'p_imp_' + Date.now() + '_' + index, name, phone, email: '', notes });
+          }
+        });
+        return list;
+      };
+
+      const parsedList = parsePeople();
+
+      return (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3.5">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-5 space-y-3.5 max-h-[90vh] overflow-y-auto custom-scrollbar text-xs sm:text-sm">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
+              <h3 className="font-black text-white text-base">Importar Personas</h3>
+              <button onClick={onClose} className="text-slate-400 p-1">✕</button>
+            </div>
+            <div>
+              <label className="text-slate-300 block mb-1 font-semibold">1. Subir archivo CSV</label>
+              <input type="file" accept=".csv, .txt" onChange={handleFileUpload} className="w-full text-xs text-slate-400 file:mr-2 file:py-2 file:px-3.5 file:rounded-xl file:border-0 file:bg-blue-600 file:text-white" />
+            </div>
+            <div>
+              <label className="text-slate-300 block mb-1 font-semibold">2. O pegar listado (un nombre por línea)</label>
+              <textarea rows="4" placeholder="Juan Pérez, 611223344" value={rawText} onChange={(e) => setRawText(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-mono text-xs" />
+            </div>
+            <button type="button" disabled={parsedList.length === 0} onClick={() => onImport(parsedList)} className="w-full py-3 rounded-xl bg-blue-600 text-white font-black text-xs disabled:opacity-50">
+              Importar {parsedList.length} Personas
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // Modal: Cobro Cliente Unificado
+    function AddPaymentModal({ personGroup, onClose, onSubmit }) {
+      const pendingAmount = personGroup.totalPending;
+      const [amount, setAmount] = useState(String(pendingAmount));
+      const [method, setMethod] = useState('Efectivo');
+      const [notes, setNotes] = useState('');
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        const numVal = Number(amount) || 0;
+        if (numVal <= 0) {
+          alert('Introduce un importe mayor que 0.');
+          return;
+        }
+        onSubmit({ personId: personGroup.person.id, amount: numVal, method, notes });
+      };
+
+      return (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3.5">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-5 space-y-3.5 text-xs sm:text-sm">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
+              <h3 className="font-black text-white text-base">Registrar Cobro a {personGroup.person.name}</h3>
+              <button onClick={onClose} className="text-slate-400 p-1">✕</button>
+            </div>
+            <div className="bg-slate-950 p-3 rounded-xl space-y-1">
+              <p className="text-slate-300">Cliente: <strong className="text-white">{personGroup.person.name}</strong></p>
+              <p className="text-slate-300">Deuda pendiente: <strong className="text-rose-400 font-bold">{formatCurrency(pendingAmount)}</strong></p>
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <div>
+                <label className="text-slate-300 block mb-1 font-bold">Importe que te entrega (€)</label>
+                <input type="number" step="any" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-black text-xl text-center" required />
+              </div>
+              <div className="grid grid-cols-4 gap-1.5">
+                {[10, 20, 50].map(val => (
+                  <button key={val} type="button" onClick={() => setAmount(String(val))} className="py-1.5 rounded-lg bg-slate-800 text-slate-200 font-bold text-xs">{val}€</button>
+                ))}
+                <button type="button" onClick={() => setAmount(String(pendingAmount))} className="py-1.5 rounded-lg bg-emerald-600/30 text-emerald-300 font-bold text-xs">Todo</button>
+              </div>
+              <div>
+                <label className="text-slate-300 block mb-1 font-semibold">Método</label>
+                <select value={method} onChange={(e) => setMethod(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white">
+                  <option value="Efectivo">Efectivo</option>
+                  <option value="Bizum">Bizum</option>
+                  <option value="Transferencia">Transferencia</option>
+                </select>
+              </div>
+              <button type="submit" className="w-full py-3.5 rounded-xl bg-emerald-500 text-slate-950 font-black text-xs shadow-lg">
+                Confirmar Cobro ({formatCurrency(Number(amount) || 0)})
+              </button>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    // Modal: Entrada Lotería
+    function AddLotteryModal({ defaultCostPrice, onClose, onSubmit }) {
+      const [number, setNumber] = useState('');
+      const [series, setSeries] = useState('');
+      const [decimos, setDecimos] = useState('');
+      const [seriesRange, setSeriesRange] = useState('');
+      const [costPricePerDecimo, setCostPricePerDecimo] = useState(String(defaultCostPrice));
+      const [supplier, setSupplier] = useState('');
+      const [notes, setNotes] = useState('');
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        if (!number.trim()) return;
+        if (!series && !decimos) {
+          alert('Introduce series o décimos.');
+          return;
+        }
+        onSubmit({ number, series: Number(series) || 0, decimos: Number(decimos) || 0, seriesRange, supplier, costPricePerDecimo: Number(costPricePerDecimo) || defaultCostPrice, notes });
+      };
+
+      return (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3.5">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-5 space-y-3.5 max-h-[90vh] overflow-y-auto custom-scrollbar text-xs sm:text-sm">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
+              <h3 className="font-black text-white text-base">Recoger Lotería (Administración)</h3>
+              <button onClick={onClose} className="text-slate-400 p-1">✕</button>
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <div>
+                <label className="text-slate-300 block mb-1 font-bold">Número</label>
+                <input type="text" placeholder="Ej: 12345" value={number} onChange={e => setNumber(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-mono font-bold text-base" required />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-slate-300 block mb-1 font-semibold">Series</label>
+                  <input type="number" placeholder="0" value={series} onChange={e => setSeries(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white font-bold" />
+                </div>
+                <div>
+                  <label className="text-slate-300 block mb-1 font-semibold">Décimos</label>
+                  <input type="number" placeholder="0" value={decimos} onChange={e => setDecimos(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white font-bold" />
+                </div>
+              </div>
+              <div>
+                <label className="text-amber-300 block mb-1 font-bold">Nº de Series (Ej: Series 001 a 003)</label>
+                <input type="text" placeholder="Series 001 a 003" value={seriesRange} onChange={e => setSeriesRange(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white" />
+              </div>
+              <div>
+                <label className="text-slate-300 block mb-1 font-semibold">Coste Compra (€/décimo)</label>
+                <input type="number" step="any" value={costPricePerDecimo} onChange={e => setCostPricePerDecimo(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white font-black" required />
+              </div>
+              <button type="submit" className="w-full py-3 rounded-xl bg-emerald-500 text-slate-950 font-black text-xs shadow-lg">
+                Guardar Recogida
+              </button>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    // Modal: Añadir Persona
+    function AddPersonModal({ onClose, onSubmit }) {
+      const [name, setName] = useState('');
+      const [phone, setPhone] = useState('');
+      const [notes, setNotes] = useState('');
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        if (!name.trim()) return;
+        onSubmit({ name, phone, notes, email: '' });
+      };
+
+      return (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3.5">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-5 space-y-3.5 text-xs sm:text-sm">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
+              <h3 className="font-black text-white text-base">Añadir Persona</h3>
+              <button onClick={onClose} className="text-slate-400 p-1">✕</button>
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <div>
+                <label className="text-slate-300 block mb-1 font-bold">Nombre</label>
+                <input type="text" placeholder="Ej: Juan Pérez" value={name} onChange={e => setName(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-bold" required />
+              </div>
+              <div>
+                <label className="text-slate-300 block mb-1 font-semibold">Teléfono</label>
+                <input type="tel" placeholder="Ej: 611223344" value={phone} onChange={e => setPhone(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white" />
+              </div>
+              <button type="submit" className="w-full py-2.5 rounded-xl bg-emerald-500 text-slate-950 font-black text-xs shadow-lg">
+                Guardar Persona
+              </button>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    // Modal: Gestor Campañas
+    function CampaignsManagerModal({ campaigns, activeCampaignId, onClose, onSelect, onCreate, onToggleClose, onDelete }) {
+      const [showNewForm, setShowNewForm] = useState(false);
+      const [name, setName] = useState('');
+      const [year, setYear] = useState(new Date().getFullYear().toString());
+      const [defaultCostPrice, setDefaultCostPrice] = useState('20');
+      const [defaultSurcharge, setDefaultSurcharge] = useState('3');
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        if (!name.trim()) return;
+        onCreate({ name, year, defaultCostPrice: Number(defaultCostPrice) || 20, defaultSurcharge: Number(defaultSurcharge) || 0 });
+      };
+
+      return (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3.5">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-5 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h3 className="font-black text-white text-base">Historial de Campañas</h3>
+              <button onClick={onClose} className="text-slate-400 hover:text-white p-1">✕</button>
+            </div>
+
+            {!showNewForm ? (
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-slate-300">Campañas ({campaigns.length})</span>
+                  <button onClick={() => setShowNewForm(true)} className="px-3.5 py-2 bg-emerald-500 text-slate-950 font-black text-xs rounded-xl">+ Nueva Campaña</button>
+                </div>
+                <div className="space-y-2.5 max-h-64 overflow-y-auto custom-scrollbar">
+                  {campaigns.map(c => {
+                    const isSelected = c.id === activeCampaignId;
+                    return (
+                      <div key={c.id} className={`p-3.5 rounded-xl border flex items-center justify-between text-xs sm:text-sm ${isSelected ? 'bg-slate-950 border-emerald-500' : 'bg-slate-950/60 border-slate-800'}`}>
+                        <div className="truncate max-w-[160px]">
+                          <span className="font-extrabold text-white text-sm block truncate">{c.name}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          {isSelected ? (
+                            <span className="px-2.5 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 font-black text-[11px]">Activa</span>
+                          ) : (
+                            <button onClick={() => onSelect(c.id)} className="px-2.5 py-1.5 rounded-xl bg-slate-800 text-white font-bold text-xs">Abrir</button>
+                          )}
+                          <button onClick={() => onDelete(c.id)} className="p-1.5 bg-rose-500/20 text-rose-400 rounded-xl"><i className="fas fa-trash-can text-xs"></i></button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-3.5 text-xs sm:text-sm">
+                <div>
+                  <label className="font-bold text-slate-300 block mb-1">Nombre</label>
+                  <input type="text" placeholder="Ej: Navidad 2027" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white font-bold" required />
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button type="button" onClick={() => setShowNewForm(false)} className="w-1/2 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-bold">Cancelar</button>
+                  <button type="submit" className="w-1/2 py-2.5 rounded-xl bg-emerald-500 text-slate-950 font-black">Guardar</button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // Modal: Ficha Persona
+    function PersonDetailModal({ person, distributions, payments, onClose, onOpenPayment }) {
+      const totalAmount = distributions.reduce((sum, d) => sum + d.totalAmount, 0);
+      const totalPaid = distributions.reduce((sum, d) => sum + d.paidAmount, 0);
+      const totalPending = totalAmount - totalPaid;
+      const totalDecimos = distributions.reduce((sum, d) => sum + d.decimos, 0);
+
+      return (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3.5">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-5 space-y-3.5 max-h-[90vh] overflow-y-auto custom-scrollbar text-xs sm:text-sm">
+            <div className="flex justify-between items-start border-b border-slate-800 pb-2.5">
+              <div>
+                <h3 className="font-black text-white text-base">{person.name}</h3>
+                <p className="text-xs text-slate-400">{person.phone || 'Sin teléfono'}</p>
+              </div>
+              <button onClick={onClose} className="text-slate-400 p-1">✕</button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="bg-slate-950 p-2.5 rounded-xl"><span className="text-slate-400 block text-xs">Total</span><strong className="text-white text-sm">{formatCurrency(totalAmount)}</strong></div>
+              <div className="bg-slate-950 p-2.5 rounded-xl"><span className="text-slate-400 block text-xs">Pagado</span><strong className="text-emerald-400 text-sm">{formatCurrency(totalPaid)}</strong></div>
+              <div className="bg-slate-950 p-2.5 rounded-xl"><span className="text-slate-400 block text-xs">Debe</span><strong className="text-rose-400 text-sm">{formatCurrency(totalPending)}</strong></div>
+            </div>
+
+            <div className="space-y-2">
+              <h4 className="font-extrabold text-slate-300 text-sm">Historial de Entregas ({totalDecimos} décimos)</h4>
+              {distributions.map(d => (
+                <div key={d.id} className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1 text-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="font-mono text-amber-400 font-bold text-sm">Nº {d.number}</span>
+                    <span className="text-white font-bold">{d.decimos} déc. ({formatCurrency(d.totalAmount)})</span>
+                  </div>
+                  <div className="flex justify-between text-slate-400 text-[11px]">
+                    <span>{formatDateTime(d.date)}</span>
+                    <span className="text-emerald-400 font-bold">{d.status === 'paid' ? 'PAGADO' : `Debe ${formatCurrency(d.totalAmount - d.paidAmount)}`}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./service-worker.js", { scope: "./" })
+          .catch(err => console.error("No se pudo registrar el Service Worker:", err));
+      });
+    }
+  </script>
+</body>
+</html>
